@@ -1,28 +1,24 @@
 package com.htet.happystore.controller;
 
-import com.htet.happystore.entity.Product;
-import com.htet.happystore.repository.ProductRepository;
+import com.htet.happystore.dto.ApiResponse;
+import com.htet.happystore.dto.ProductResponse;
+import com.htet.happystore.service.ProductService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/products")
+@RequestMapping("/api/products")
+@RequiredArgsConstructor
 public class ProductController {
 
-    private final ProductRepository productRepository;
-
-    public ProductController(ProductRepository productRepository) {
-        this.productRepository = productRepository;
-    }
+    private final ProductService productService;
 
     @GetMapping
-    public List<Product> getAllProducts() {
-        return productRepository.findAll();
-    }
-
-    @PostMapping
-    public Product createProduct(@RequestBody Product product) {
-        return productRepository.save(product);
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getProducts() {
+        List<ProductResponse> products = productService.getAllProductsForUser();
+        return ResponseEntity.ok(ApiResponse.success(products, "ပစ္စည်းစာရင်းများကို ရရှိပါပြီ။"));
     }
 }
