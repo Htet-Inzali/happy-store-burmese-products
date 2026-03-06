@@ -26,12 +26,12 @@ public class OrderItem {
 
     @ManyToOne
     @JoinColumn(name = "batch_id", nullable = false)
-    private StockBatch batch;
+    private StockBatch batch; // Admin Profit တွက်ရန် မရှိမဖြစ်လိုအပ်
 
     @Min(1)
     @Column(nullable = false)
     private Integer quantity;
 
     @Column(precision = 19, scale = 2, nullable = false)
-    private BigDecimal priceAtPurchaseVND; // ဝယ်ချိန်က ဈေးနှုန်း snapshot
+    private BigDecimal priceAtPurchaseVND; // ဝယ်ချိန်က ဈေးနှုန်း snapshot (Product ထဲက currentPrice ကို ကူးထည့်ရန်)
 }

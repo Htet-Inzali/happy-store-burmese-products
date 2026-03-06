@@ -3,6 +3,7 @@ package com.htet.happystore.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -40,6 +41,9 @@ public class Order {
     @Column(nullable = false, updatable = false)
     private LocalDateTime orderDate;
 
+    @UpdateTimestamp
+    private LocalDateTime updatedDate;
+
     @Column(precision = 19, scale = 2)
     private BigDecimal totalAmountVND;
 
@@ -54,7 +58,6 @@ public class Order {
     private String shippingAddress;
     private String contactPhone;
 
-    // items ကို ပြသခွင့်ပေးမယ်၊ ဒါပေမဲ့ item ထဲကနေ order ဆီ ပြန်မသွားခိုင်းပါနဲ့
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     private List<OrderItem> items;
 }

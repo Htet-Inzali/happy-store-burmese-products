@@ -2,7 +2,10 @@ package com.htet.happystore.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -47,6 +50,15 @@ public class User {
     private List<Order> orders;
 
     private String profileImageUrl;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    private boolean isActive = true;
 
     // ==============================
     // Data Integrity Validation

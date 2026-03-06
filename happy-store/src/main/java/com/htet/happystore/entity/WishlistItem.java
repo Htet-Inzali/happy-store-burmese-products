@@ -2,6 +2,8 @@ package com.htet.happystore.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -20,10 +22,7 @@ public class WishlistItem {
     @JoinColumn(name = "product_id")
     private Product product; // 🌟 ဘယ်ပစ္စည်းလဲ
 
+    @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime addedDate;
-
-    @PrePersist
-    protected void onCreate() {
-        addedDate = LocalDateTime.now();
-    }
 }
