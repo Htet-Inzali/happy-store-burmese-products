@@ -11,8 +11,6 @@ import java.util.List;
 
 public interface StockBatchRepository extends JpaRepository<StockBatch, Long> {
 
-    // FIFO အတွက် — expiryDate null ဖြစ်ရင် arrivalDate နဲ့ fallback sort လုပ်မယ်
-    // @Lock သည် write operation မှာသာ သုံးသင့်တယ်၊ read query မှာ OPTIMISTIC lock မသင့်တော်ဘူး
     @Query("""
             SELECT b FROM StockBatch b
             WHERE b.product.id = :productId
@@ -27,7 +25,6 @@ public interface StockBatchRepository extends JpaRepository<StockBatch, Long> {
             @Param("minQty") Integer minQty
     );
 
-    // Stock deduct တဲ့အချိန် pessimistic lock သုံးမယ်
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT b FROM StockBatch b

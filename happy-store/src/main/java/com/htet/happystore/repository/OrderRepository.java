@@ -11,13 +11,10 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    // Sales report အတွက် date range filter
     List<Order> findByOrderDateBetween(LocalDateTime start, LocalDateTime end);
 
-    // User ကိုယ်ပိုင် order history အတွက်
     List<Order> findByUser(User user);
 
-    // Order တွေကို ရက်စွဲအလိုက် အသစ်ဆုံးကနေ အရင်ပြရန်
     List<Order> findAllByOrderByOrderDateDesc();
 
     @Query("SELECT o FROM Order o WHERE o.orderDate >= :startOfDay AND o.orderDate <= :endOfDay")
@@ -26,10 +23,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("endOfDay") LocalDateTime end
     );
 
+    // ReportDTO.TopProduct နှင့် တွဲဖက်အသုံးပြုရန်
     @Query("SELECT i.product.name, SUM(i.quantity) FROM OrderItem i " +
             "GROUP BY i.product.name " +
             "ORDER BY SUM(i.quantity) DESC")
     List<Object[]> findTopSellingProducts();
-
-//    List<Order> findByUserOrderByOrderDateDesc(User user);
 }
