@@ -16,7 +16,6 @@ public class AdminSettingController {
 
     private final SettingService settingService;
 
-    // Map<String, Double> → Map<String, BigDecimal> (SettingService BigDecimal သုံးနေတာနဲ့ ကိုက်ညီအောင်)
     @PostMapping("/update")
     public ResponseEntity<ApiResponse<String>> updateSettings(@RequestBody Map<String, BigDecimal> settings) {
         settings.forEach(settingService::updateSetting);

@@ -2,9 +2,7 @@ package com.htet.happystore.controller;
 
 import com.htet.happystore.config.JwtUtils;
 import com.htet.happystore.dto.ApiResponse;
-import com.htet.happystore.dto.AuthResponse;
-import com.htet.happystore.dto.LoginRequest;
-import com.htet.happystore.dto.RegisterRequest;
+import com.htet.happystore.dto.AuthDTO;
 import com.htet.happystore.entity.User;
 import com.htet.happystore.repository.UserRepository;
 import com.htet.happystore.service.UserService;
@@ -28,24 +26,25 @@ public class AuthController {
     private final JwtUtils jwtUtils;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<String>> register(@Valid @RequestBody RegisterRequest request) {
-        userService.registerUser(request);
+    public ResponseEntity<ApiResponse<AuthDTO.Response>> register(@Valid @RequestBody AuthDTO.RegisterRequest request) {
+        User savedUser = userService.registerUser(request);
+        String token = jwtUtils.generateToken(savedUser.getEmail() != null ? savedUser.getEmail() : savedUser.getPhone());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(null, "အကောင့်ဖွင့်ခြင်း အောင်မြင်ပါသည်။"));
+                .body(ApiResponse.success(new AuthDTO.Response(token, savedUser.getRole().name()), "အကောင့်သစ်ဖွင့်ခြင်း အောင်မြင်ပါသည်။"));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<AuthDTO.Response>> login(@Valid @RequestBody AuthDTO.LoginRequest request) {
         Optional<User> userOpt = userRepository.findByEmail(request.getCredential())
                 .or(() -> userRepository.findByPhone(request.getCredential()));
 
         if (userOpt.isPresent() && passwordEncoder.matches(request.getPassword(), userOpt.get().getPassword())) {
             User user = userOpt.get();
+            if (!user.isActive()) throw new IllegalStateException("သင့်အကောင့်အား ယာယီပိတ်ထားပါသည်။");
+
             String token = jwtUtils.generateToken(user.getEmail() != null ? user.getEmail() : user.getPhone());
-            AuthResponse data = new AuthResponse(token, user.getRole().name());
-            return ResponseEntity.ok(ApiResponse.success(data, "Login အောင်မြင်ပါသည်။"));
+            return ResponseEntity.ok(ApiResponse.success(new AuthDTO.Response(token, user.getRole().name()), "Login ဝင်ခြင်း အောင်မြင်ပါသည်။"));
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("Email/Phone သို့မဟုတ် Password မှားယွင်းနေပါသည်။"));
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("အကောင့် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။"));
     }
 }

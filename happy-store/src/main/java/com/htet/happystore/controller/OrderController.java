@@ -1,9 +1,7 @@
 package com.htet.happystore.controller;
 
 import com.htet.happystore.dto.ApiResponse;
-import com.htet.happystore.dto.OrderRequest;
-import com.htet.happystore.dto.OrderUserResponse;
-import com.htet.happystore.entity.Order;
+import com.htet.happystore.dto.OrderDTO;
 import com.htet.happystore.entity.User;
 import com.htet.happystore.repository.UserRepository;
 import com.htet.happystore.service.OrderService;
@@ -25,21 +23,22 @@ public class OrderController {
     private final UserRepository userRepository;
 
     @PostMapping("/checkout")
-    public ResponseEntity<ApiResponse<String>> checkout(
-            @Valid @RequestBody OrderRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        String credential = userDetails.getUsername();
-        User user = userRepository.findByEmail(credential)
-                .orElseGet(() -> userRepository.findByPhone(credential)
-                        .orElseThrow(() -> new IllegalStateException("User not found")));
-
-        Order order = orderService.placeOrder(user, request);
-        return ResponseEntity.ok(ApiResponse.success(null, "Order တင်ခြင်း အောင်မြင်ပါသည်။ ID: " + order.getId()));
+    public ResponseEntity<ApiResponse<OrderDTO.UserResponse>> checkout(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody OrderDTO.Request request) {
+        User user = getUser(userDetails);
+        return ResponseEntity.ok(ApiResponse.success(orderService.createOrder(user, request), "အော်ဒါတင်ခြင်း အောင်မြင်ပါသည်။"));
     }
 
     @GetMapping("/my-orders")
-    public ResponseEntity<ApiResponse<List<OrderUserResponse>>> getMyOrders(@AuthenticationPrincipal User user) {
-        List<OrderUserResponse> orders = orderService.getMyOrders(user);
-        return ResponseEntity.ok(ApiResponse.success(orders, "ဝယ်ယူမှုမှတ်တမ်းများကို ရရှိပါပြီ။"));
+    public ResponseEntity<ApiResponse<List<OrderDTO.UserResponse>>> getMyOrders(@AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUser(userDetails);
+        return ResponseEntity.ok(ApiResponse.success(orderService.getMyOrders(user), "သင်၏ အော်ဒါမှတ်တမ်းများ။"));
+    }
+
+    private User getUser(UserDetails details) {
+        return userRepository.findByEmail(details.getUsername())
+                .or(() -> userRepository.findByPhone(details.getUsername()))
+                .orElseThrow(() -> new IllegalArgumentException("User မတွေ့ပါ"));
     }
 }
