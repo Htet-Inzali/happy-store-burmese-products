@@ -1,9 +1,6 @@
 package com.htet.happystore.service;
 
-import com.htet.happystore.dto.OrderAdminResponse;
-import com.htet.happystore.dto.OrderRequest;
-import com.htet.happystore.dto.OrderUserResponse;
-import com.htet.happystore.dto.TopProductDTO;
+import com.htet.happystore.dto.OrderDTO;
 import com.htet.happystore.entity.*;
 import com.htet.happystore.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -25,169 +22,105 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final ProductRepository productRepository;
     private final StockBatchRepository batchRepository;
 
-    // =========================================================================
-    // 🛒 User များ Order တင်ရန် (Checkout)
-    // =========================================================================
+    // ==========================================
+    // 🛒 1. Checkout (FIFO Logic)
+    // ==========================================
     @Transactional
-    public Order placeOrder(User user, OrderRequest request) {
-
+    public OrderDTO.UserResponse createOrder(User user, OrderDTO.Request request) {
         Order order = new Order();
         order.setUser(user);
-
-        // Entity မှာ PENDING လို့ default ပေးထားပြီးဖြစ်၍ setStatus ထပ်ရေးရန်မလိုပါ။
-
-        order.setDeliveryType(Order.DeliveryType.valueOf(request.getDeliveryType()));
+        order.setDeliveryType(Order.DeliveryType.valueOf(request.getDeliveryType().toUpperCase()));
         order.setShippingAddress(request.getShippingAddress());
-
-        // 📞 ဖုန်းနံပါတ် အလိုအလျောက် ဖြည့်ပေးသည့်အပိုင်း
-        if (request.getContactPhone() != null && !request.getContactPhone().isBlank()) {
-            order.setContactPhone(request.getContactPhone());
-        } else {
-            order.setContactPhone(user.getPhone());
-        }
-
+        order.setContactPhone(request.getContactPhone() != null ? request.getContactPhone() : user.getPhone());
+        order.setStatus(Order.OrderStatus.PENDING);
         order.setItems(new ArrayList<>());
-        BigDecimal totalOrderAmount = BigDecimal.ZERO;
 
-        for (OrderRequest.CartItemDTO itemDTO : request.getItems()) {
+        BigDecimal totalAmountVND = BigDecimal.ZERO;
 
-            int remainingToDeduct = itemDTO.getQuantity();
+        for (OrderDTO.Request.CartItem cartItem : request.getItems()) {
+            Product product = productRepository.findById(cartItem.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product မတွေ့ပါ"));
 
-            // Pessimistic write lock
-            List<StockBatch> availableBatches =
-                    batchRepository.findAvailableBatchesForUpdate(itemDTO.getProductId());
+            if (!product.isActive()) {
+                throw new IllegalStateException(product.getName() + " သည် လက်ရှိတွင် ရောင်းချခြင်းမရှိပါ။");
+            }
+
+            int neededQty = cartItem.getQuantity();
+
+            // PESSIMISTIC Lock ဖြင့် Batch များကို ဆွဲထုတ်ခြင်း
+            List<StockBatch> availableBatches = batchRepository.findAvailableBatchesForUpdate(product.getId());
 
             for (StockBatch batch : availableBatches) {
+                if (neededQty <= 0) break;
 
-                if (remainingToDeduct <= 0) break;
+                int availableInBatch = batch.getRemainingQuantity();
+                int qtyToDeduct = Math.min(availableInBatch, neededQty);
 
-                int batchQty = batch.getRemainingQuantity();
-                if (batchQty <= 0) continue;
-
-                int takeAmount = Math.min(batchQty, remainingToDeduct);
-
-                // Stock ထဲမှ နုတ်ခြင်း
-                batch.setRemainingQuantity(batchQty - takeAmount);
+                batch.setRemainingQuantity(availableInBatch - qtyToDeduct);
+                batchRepository.save(batch);
 
                 OrderItem orderItem = new OrderItem();
                 orderItem.setOrder(order);
-                orderItem.setProduct(batch.getProduct());
+                orderItem.setProduct(product);
                 orderItem.setBatch(batch);
-                orderItem.setQuantity(takeAmount);
-                orderItem.setPriceAtPurchaseVND(batch.getSalePriceVND());
+                orderItem.setQuantity(qtyToDeduct);
+                orderItem.setPriceAtPurchaseVND(product.getCurrentPriceVND());
 
                 order.getItems().add(orderItem);
 
-                BigDecimal lineTotal = batch.getSalePriceVND()
-                        .multiply(BigDecimal.valueOf(takeAmount));
+                BigDecimal itemTotal = product.getCurrentPriceVND().multiply(BigDecimal.valueOf(qtyToDeduct));
+                totalAmountVND = totalAmountVND.add(itemTotal);
 
-                totalOrderAmount = totalOrderAmount.add(lineTotal);
-                remainingToDeduct -= takeAmount;
+                neededQty -= qtyToDeduct;
             }
 
-            if (remainingToDeduct > 0) {
-                throw new IllegalStateException(
-                        "Product ID " + itemDTO.getProductId() + " အတွက် Stock မလောက်တော့ပါ။"
-                );
+            if (neededQty > 0) {
+                throw new IllegalStateException(product.getName() + " အတွက် Stock အလုံအလောက် မရှိပါ။");
             }
         }
 
-        order.setTotalAmountVND(totalOrderAmount);
-        return orderRepository.save(order);
+        order.setTotalAmountVND(totalAmountVND);
+        Order savedOrder = orderRepository.save(order);
+        return mapToUserResponse(savedOrder);
     }
 
-    // =========================================================================
-    // 👑 Admin များ Order Status ပြောင်းရန်
-    // =========================================================================
-    @Transactional
-    public Order updateOrderStatus(Long orderId, String newStatusStr) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order ID ရှာမတွေ့ပါ"));
+    // ==========================================
+    // 👤 2. User Order History
+    // ==========================================
+    public List<OrderDTO.UserResponse> getMyOrders(User user) {
+        return orderRepository.findByUser(user).stream()
+                .map(this::mapToUserResponse)
+                .collect(Collectors.toList());
+    }
 
-        // 🌟 ပိုမိုစိတ်ချရသော Enum ရှာဖွေနည်း
-        Order.OrderStatus targetStatus = null;
-        String input = (newStatusStr != null) ? newStatusStr.trim().toUpperCase() : "";
-
-        for (Order.OrderStatus status : Order.OrderStatus.values()) {
-            if (status.name().equals(input)) {
-                targetStatus = status;
-                break;
-            }
-        }
-
-        if (targetStatus == null) {
-            throw new IllegalArgumentException("မှားယွင်းသော Status ဖြစ်ပါသည်။ (ပို့လိုက်သောစာသား: '" + newStatusStr + "')");
-        }
-
-        order.setStatus(targetStatus);
-        return orderRepository.save(order);
+    // ==========================================
+    // 👑 3. Admin Order Management
+    // ==========================================
+    public List<OrderDTO.AdminResponse> getAllOrdersForAdmin() {
+        return orderRepository.findAllByOrderByOrderDateDesc().stream()
+                .map(this::mapToAdminResponse)
+                .collect(Collectors.toList());
     }
 
     @Transactional
-    public void updateOrderStatusWithEnum(Long orderId, Order.OrderStatus newStatus) {
+    public void updateOrderStatus(Long orderId, String newStatusStr) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order ID ရှာမတွေ့ပါ"));
-
-        order.setStatus(newStatus);
-        orderRepository.save(order);
+        try {
+            order.setStatus(Order.OrderStatus.valueOf(newStatusStr.toUpperCase()));
+            orderRepository.save(order);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("မှားယွင်းသော Status ဖြစ်ပါသည်။");
+        }
     }
 
-    // Admin အတွက် DTO ပြောင်းပေးခြင်း
-    public List<OrderAdminResponse> getAllOrdersForAdmin() {
-        return orderRepository.findAllByOrderByOrderDateDesc().stream().map(order -> {
-            OrderAdminResponse dto = new OrderAdminResponse();
-            dto.setId(order.getId());
-            dto.setCustomerName(order.getUser().getFullName());
-            dto.setCustomerPhone(order.getContactPhone());
-            dto.setOrderDate(order.getOrderDate());
-            dto.setTotalAmountVND(order.getTotalAmountVND());
-            dto.setStatus(order.getStatus().name());
-
-            dto.setItems(order.getItems().stream().map(item -> {
-                OrderAdminResponse.ItemAdminDTO itemDto = new OrderAdminResponse.ItemAdminDTO();
-                itemDto.setProductName(item.getProduct().getName());
-                itemDto.setQuantity(item.getQuantity());
-                itemDto.setPrice(item.getPriceAtPurchaseVND());
-                itemDto.setBatchId(item.getBatch().getId()); // Batch Info ပါသည်
-                itemDto.setOriginalCost(item.getBatch().getOriginalPriceMMK());
-                return itemDto;
-            }).toList());
-
-            return dto;
-        }).toList();
-    }
-
-    // User အတွက် DTO ပြောင်းပေးခြင်း (ဥပမာ- My Orders ကြည့်ရန်)
-    public List<OrderUserResponse> getMyOrders(User user) {
-        return orderRepository.findByUser(user).stream().map(order -> {
-            OrderUserResponse dto = new OrderUserResponse();
-            dto.setId(order.getId());
-            dto.setOrderDate(order.getOrderDate());
-            dto.setTotalAmountVND(order.getTotalAmountVND());
-            dto.setStatus(order.getStatus().name());
-            dto.setDeliveryType(order.getDeliveryType().name());
-
-            dto.setItems(order.getItems().stream().map(item -> {
-                OrderUserResponse.ItemUserDTO itemDto = new OrderUserResponse.ItemUserDTO();
-                itemDto.setProductName(item.getProduct().getName());
-                itemDto.setQuantity(item.getQuantity());
-                itemDto.setPrice(item.getPriceAtPurchaseVND());
-                return itemDto; // 🛡 Batch Info လုံးဝ မပါပါ
-            }).toList());
-
-            return dto;
-        }).toList();
-    }
-
-    // OrderService.java ထဲမှာ ပေါင်းထည့်ပါ
     public Map<String, Object> getDailySalesSummary() {
         LocalDateTime start = LocalDate.now().atStartOfDay();
         LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
-
         List<Order> todayOrders = orderRepository.findAllOrdersForToday(start, end);
-
         BigDecimal totalRevenue = todayOrders.stream()
                 .map(Order::getTotalAmountVND)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -196,38 +129,54 @@ public class OrderService {
         summary.put("date", LocalDate.now());
         summary.put("totalOrders", todayOrders.size());
         summary.put("totalRevenueVND", totalRevenue);
-
         return summary;
     }
 
-    public List<TopProductDTO> getTopSellingProducts() {
-        return orderRepository.findTopSellingProducts().stream()
-                .map(result -> new TopProductDTO((String) result[0], (Long) result[1]))
-                .collect(Collectors.toList());
+    // ==========================================
+    // 🔄 Mappers
+    // ==========================================
+    private OrderDTO.UserResponse mapToUserResponse(Order order) {
+        OrderDTO.UserResponse res = new OrderDTO.UserResponse();
+        res.setId(order.getId());
+        res.setOrderDate(order.getOrderDate());
+        res.setTotalAmountVND(order.getTotalAmountVND());
+        res.setStatus(order.getStatus().name());
+        res.setDeliveryType(order.getDeliveryType().name());
+
+        List<OrderDTO.UserResponse.Item> items = order.getItems().stream().map(i -> {
+            OrderDTO.UserResponse.Item itemDTO = new OrderDTO.UserResponse.Item();
+            itemDTO.setProductName(i.getProduct().getName());
+            itemDTO.setQuantity(i.getQuantity());
+            itemDTO.setPrice(i.getPriceAtPurchaseVND());
+            return itemDTO;
+        }).collect(Collectors.toList());
+
+        res.setItems(items);
+        return res;
     }
 
-    public OrderAdminResponse getOrderDetailsForAdmin(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order ID " + orderId + " ကို ရှာမတွေ့ပါ"));
+    private OrderDTO.AdminResponse mapToAdminResponse(Order order) {
+        OrderDTO.AdminResponse res = new OrderDTO.AdminResponse();
+        res.setId(order.getId());
+        res.setCustomerName(order.getUser().getFullName());
+        res.setCustomerPhone(order.getContactPhone() != null ? order.getContactPhone() : order.getUser().getPhone());
+        res.setOrderDate(order.getOrderDate());
+        res.setTotalAmountVND(order.getTotalAmountVND());
+        res.setStatus(order.getStatus().name());
 
-        OrderAdminResponse dto = new OrderAdminResponse();
-        dto.setId(order.getId());
-        dto.setCustomerName(order.getUser().getFullName());
-        dto.setCustomerPhone(order.getContactPhone());
-        dto.setOrderDate(order.getOrderDate());
-        dto.setTotalAmountVND(order.getTotalAmountVND());
-        dto.setStatus(order.getStatus().name());
+        List<OrderDTO.AdminResponse.Item> items = order.getItems().stream().map(i -> {
+            OrderDTO.AdminResponse.Item itemDTO = new OrderDTO.AdminResponse.Item();
+            itemDTO.setProductName(i.getProduct().getName());
+            itemDTO.setQuantity(i.getQuantity());
+            itemDTO.setPrice(i.getPriceAtPurchaseVND());
+            itemDTO.setBatchId(i.getBatch().getId()); // 🌟 အမြတ်တွက်ရန် Batch ID
 
-        dto.setItems(order.getItems().stream().map(item -> {
-            OrderAdminResponse.ItemAdminDTO itemDto = new OrderAdminResponse.ItemAdminDTO();
-            itemDto.setProductName(item.getProduct().getName());
-            itemDto.setQuantity(item.getQuantity());
-            itemDto.setPrice(item.getPriceAtPurchaseVND());
-            itemDto.setBatchId(item.getBatch().getId()); // 🌟 Admin အတွက် Batch ID ပါမယ်
-            itemDto.setOriginalCost(item.getBatch().getOriginalPriceMMK()); // 🌟 ရင်းနှီးခုတ် ပါမယ်
-            return itemDto;
-        }).toList());
+            BigDecimal original = i.getBatch().getOriginalPriceMMK() != null ? i.getBatch().getOriginalPriceMMK() : BigDecimal.ZERO;
+            itemDTO.setOriginalCost(original.add(i.getBatch().getCalculatedKiloCost()));
+            return itemDTO;
+        }).collect(Collectors.toList());
 
-        return dto;
+        res.setItems(items);
+        return res;
     }
 }

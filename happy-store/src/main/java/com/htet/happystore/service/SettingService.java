@@ -29,25 +29,18 @@ public class SettingService {
                 .orElse(defaultValue);
     }
 
-    // Exchange rate shortcut
     public BigDecimal getExchangeRate() {
         return getSettingValue("EXCHANGE_RATE", BigDecimal.ONE);
     }
 
-    // ရောင်းဈေးတွက်ချက်ပေးမည့် Method
-    // Formula: (originalPriceMMK + kiloCostMMK) * (1 + profitPercent/100) * exchangeRate
     public BigDecimal calculateSalePriceVND(StockBatch batch) {
-
         BigDecimal exchangeRate  = getSettingValue("EXCHANGE_RATE",  BigDecimal.ONE);
         BigDecimal profitPercent = getSettingValue("PROFIT_PERCENT", BigDecimal.valueOf(20));
 
         BigDecimal original = batch.getOriginalPriceMMK() != null
-                ? batch.getOriginalPriceMMK()
-                : BigDecimal.ZERO;
+                ? batch.getOriginalPriceMMK() : BigDecimal.ZERO;
 
-        // getCalculatedKiloCost() — weight * kiloRate / 1000
         BigDecimal kiloCost = batch.getCalculatedKiloCost();
-
         BigDecimal totalCostMMK = original.add(kiloCost);
 
         BigDecimal multiplier = BigDecimal.ONE.add(

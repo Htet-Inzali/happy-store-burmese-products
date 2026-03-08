@@ -15,13 +15,19 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class WishlistService {
+
     private final WishlistRepository wishlistRepository;
     private final ProductRepository productRepository;
 
     @Transactional
     public String toggleWishlist(User user, Long productId) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product ရှာမတွေ့ပါ"));
+                .orElseThrow(() -> new IllegalArgumentException("Product ရှာမတွေ့ပါ"));
+
+        // 🌟 ဖျက်ထားသော Product များအား Wishlist ထဲ ထည့်ခွင့်မပြုပါ
+        if (!product.isActive()) {
+            throw new IllegalStateException("ဤ Product သည် လက်ရှိတွင် ရောင်းချခြင်းမရှိပါ။");
+        }
 
         Optional<WishlistItem> existingItem = wishlistRepository.findByUserAndProduct(user, product);
 

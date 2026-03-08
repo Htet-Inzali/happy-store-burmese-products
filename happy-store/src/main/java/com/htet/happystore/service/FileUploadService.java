@@ -18,9 +18,7 @@ public class FileUploadService {
     private String uploadDir;
 
     private Path productUploadPath;
-
     private final Set<String> allowedExtensions = Set.of("jpg", "jpeg", "png", "webp");
-
     private final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
     @PostConstruct
@@ -30,58 +28,35 @@ public class FileUploadService {
     }
 
     public String saveImage(MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) throw new IOException("File is empty");
+        if (file.getSize() > MAX_FILE_SIZE) throw new IOException("File size must be less than 5MB");
 
-        if (file == null || file.isEmpty()) {
-            throw new IOException("File is empty");
-        }
-
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IOException("File size must be less than 5MB");
-        }
-
-        // getOriginalFilename() က null ဖြစ်နိုင်တယ် — null check အရင်လုပ်မယ်
         String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            throw new IOException("Invalid file name");
-        }
+        if (originalFilename == null || originalFilename.isBlank()) throw new IOException("Invalid file name");
 
         originalFilename = StringUtils.cleanPath(originalFilename);
-
-        if (originalFilename.contains("..")) {
-            throw new IOException("Invalid file name: path traversal detected");
-        }
+        if (originalFilename.contains("..")) throw new IOException("Invalid file name: path traversal detected");
 
         String extension = getFileExtension(originalFilename);
-
-        if (!allowedExtensions.contains(extension.toLowerCase())) {
-            throw new IOException("Only JPG, PNG, WEBP images are allowed");
-        }
+        if (!allowedExtensions.contains(extension.toLowerCase())) throw new IOException("Only JPG, PNG, WEBP images are allowed");
 
         String fileName = UUID.randomUUID() + "." + extension;
-
         Path filePath = productUploadPath.resolve(fileName).normalize();
 
-        if (!filePath.startsWith(productUploadPath)) {
-            throw new IOException("Invalid file path");
-        }
+        if (!filePath.startsWith(productUploadPath)) throw new IOException("Invalid file path");
 
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
         return "/uploads/products/" + fileName;
     }
 
     public void deleteImage(String imagePath) throws IOException {
-
         if (imagePath == null || imagePath.isBlank()) return;
 
         String relativePath = imagePath.replace("/uploads/", "");
-
         Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
         Path filePath = basePath.resolve(relativePath).normalize();
 
-        if (!filePath.startsWith(basePath)) {
-            throw new IOException("Invalid file path: path traversal detected");
-        }
+        if (!filePath.startsWith(basePath)) throw new IOException("Invalid file path: path traversal detected");
 
         Files.deleteIfExists(filePath);
     }

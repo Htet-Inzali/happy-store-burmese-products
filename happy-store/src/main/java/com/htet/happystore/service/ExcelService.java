@@ -20,10 +20,6 @@ import java.time.ZoneId;
 @RequiredArgsConstructor
 public class ExcelService {
 
-    // Expected Excel columns:
-    // 0: name | 1: weightGram | 2: originalPriceMMK | 3: kiloRateMMK
-    // 4: salePriceVND | 5: quantity | 6: arrivalDate | 7: expiryDate
-
     private final ProductRepository productRepository;
     private final StockBatchRepository batchRepository;
     private final SettingService settingService;
@@ -36,30 +32,22 @@ public class ExcelService {
         }
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
-
             Sheet sheet = workbook.getSheetAt(0);
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
                 String name = getStringCell(row.getCell(0));
-                if (name.isBlank()) continue; // blank row skip
+                if (name.isBlank()) continue;
 
-                BigDecimal weight       = getNumericCell(row.getCell(1));
+                BigDecimal weight = getNumericCell(row.getCell(1));
                 BigDecimal originalPrice = getNumericCell(row.getCell(2));
-                BigDecimal kiloRate     = getNumericCell(row.getCell(3));
-                // col 4: salePriceVND — auto-calculate မှာမို့ skip (သို့မဟုတ် manual override)
+                BigDecimal kiloRate = getNumericCell(row.getCell(3));
                 int qty = getNumericCell(row.getCell(5)).intValue();
 
-                // arrivalDate — col 6 (မဖြစ်မနေ ရှိရမယ်)
                 LocalDate arrivalDate = getDateCell(row.getCell(6));
-                if (arrivalDate == null) {
-                    arrivalDate = LocalDate.now(); // fallback
-                }
-
-                // expiryDate — col 7 (optional)
+                if (arrivalDate == null) arrivalDate = LocalDate.now();
                 LocalDate expiryDate = getDateCell(row.getCell(7));
 
                 Product product = productRepository.findByNameIgnoreCase(name)
@@ -67,6 +55,8 @@ public class ExcelService {
                             Product newProduct = new Product();
                             newProduct.setName(name);
                             newProduct.setWeightGram(weight.doubleValue());
+                            newProduct.setActive(true);
+                            newProduct.setSku("SKU-" + System.currentTimeMillis()); // 🌟 SKU Auto-generate
                             return productRepository.save(newProduct);
                         });
 
@@ -79,9 +69,12 @@ public class ExcelService {
                 batch.setArrivalDate(arrivalDate);
                 batch.setExpiryDate(expiryDate);
 
-                // Auto-calculate sale price from exchange rate + profit %
                 BigDecimal finalPriceVND = settingService.calculateSalePriceVND(batch);
                 batch.setSalePriceVND(finalPriceVND);
+
+                // 🌟 Excel အသစ်သွင်းလိုက်သည်နှင့် Product ၏ Live Price ကိုပါ တစ်ခါတည်း Update လုပ်ပေးခြင်း
+                product.setCurrentPriceVND(finalPriceVND);
+                productRepository.save(product);
 
                 batchRepository.save(batch);
             }
@@ -113,10 +106,7 @@ public class ExcelService {
         if (cell == null) return null;
         try {
             if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                return cell.getDateCellValue()
-                        .toInstant()
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate();
+                return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
             }
         } catch (Exception e) {
             return null;
