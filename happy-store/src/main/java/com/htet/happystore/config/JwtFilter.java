@@ -37,7 +37,6 @@ public class JwtFilter extends OncePerRequestFilter {
             if (jwtUtils.validateToken(token)) {
                 String username = jwtUtils.getUsernameFromToken(token);
 
-                // SecurityContext မှာ ရှိပြီးသားဆိုရင် ထပ်မသတ်မှတ်ဘူး
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
@@ -48,9 +47,7 @@ public class JwtFilter extends OncePerRequestFilter {
                                     userDetails.getAuthorities()
                             );
 
-                    // Request details ထည့်မယ် (IP, session info)
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }

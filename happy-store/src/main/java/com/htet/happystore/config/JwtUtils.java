@@ -13,14 +13,12 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
-    // Secret key ကို hardcode မလုပ်ဘဲ application.properties ကနေ ယူမယ်
     @Value("${app.jwt.secret}")
     private String jwtSecret;
 
     @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs; // Default: 24 hours
 
-    // Key ကို lazy init လုပ်မယ် — @Value inject ပြီးမှ ထုတ်ရမယ်
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
@@ -45,10 +43,7 @@ public class JwtUtils {
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(token);
+            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
             return true;
         } catch (ExpiredJwtException e) {
             log.warn("JWT expired: {}", e.getMessage());
