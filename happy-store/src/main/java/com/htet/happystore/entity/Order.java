@@ -21,7 +21,8 @@ public class Order {
         APPROVED,
         SHIPPING,
         DELIVERED,
-        CANCELLED
+        CANCELLED,
+        PREORDER_PENDING,
     }
 
     public enum DeliveryType {
@@ -32,6 +33,9 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(unique = true)
+    private String orderNumber; // ဥပမာ - ORD-240308-0001
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)

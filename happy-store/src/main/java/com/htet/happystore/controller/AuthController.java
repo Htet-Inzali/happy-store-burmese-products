@@ -47,4 +47,10 @@ public class AuthController {
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("အကောင့် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။"));
     }
+
+    // 🌟 Database အတွက် Password အမှန်ရယူရန် ဖြတ်လမ်း API
+    @GetMapping("/generate-hash")
+    public String generateHash(@RequestParam String password) {
+        return passwordEncoder.encode(password);
+    }
 }

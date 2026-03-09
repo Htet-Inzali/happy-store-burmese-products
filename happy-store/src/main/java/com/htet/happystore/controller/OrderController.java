@@ -23,10 +23,11 @@ public class OrderController {
     private final UserRepository userRepository;
 
     @PostMapping("/checkout")
-    public ResponseEntity<ApiResponse<OrderDTO.UserResponse>> checkout(
+    public ResponseEntity<ApiResponse<List<OrderDTO.UserResponse>>> checkout(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody OrderDTO.Request request) {
         User user = getUser(userDetails);
+        // 🌟 အော်ဒါ ၂ ခု ခွဲထွက်သွားနိုင်သဖြင့် List အနေဖြင့် ပြန်ပို့ပေးပါမည်
         return ResponseEntity.ok(ApiResponse.success(orderService.createOrder(user, request), "အော်ဒါတင်ခြင်း အောင်မြင်ပါသည်။"));
     }
 

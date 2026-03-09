@@ -10,6 +10,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/user/profile")
 @RequiredArgsConstructor
@@ -18,8 +21,20 @@ public class UserController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<User>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(ApiResponse.success(getUser(userDetails), "Profile အချက်အလက်။"));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
+        User user = getUser(userDetails);
+
+        // 🌟 ပြင်ဆင်ချက်: User Entity ကြီးကို တိုက်ရိုက်မပို့ဘဲ လိုအပ်သည်များကိုသာ ရွေးထုတ်ပို့မည် (Infinite Recursion Error ကာကွယ်ရန်)
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("id", user.getId());
+        profileData.put("fullName", user.getFullName());
+        profileData.put("email", user.getEmail());
+        profileData.put("phone", user.getPhone());
+        profileData.put("address", user.getAddress());
+        profileData.put("country", user.getCountry() != null ? user.getCountry().name() : "MYANMAR");
+        profileData.put("role", user.getRole().name());
+
+        return ResponseEntity.ok(ApiResponse.success(profileData, "Profile အချက်အလက်။"));
     }
 
     @PutMapping

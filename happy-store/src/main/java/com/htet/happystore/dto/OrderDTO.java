@@ -35,6 +35,8 @@ public class OrderDTO {
     @Data
     public static class UserResponse {
         private Long id;
+        // UserResponse နှင့် AdminResponse နှစ်ခုလုံးထဲတွင် ထည့်ရန်
+        private String orderNumber;
         private LocalDateTime orderDate;
         private BigDecimal totalAmountVND;
         private String status;
@@ -52,6 +54,8 @@ public class OrderDTO {
     @Data
     public static class AdminResponse {
         private Long id;
+        // UserResponse နှင့် AdminResponse နှစ်ခုလုံးထဲတွင် ထည့်ရန်
+        private String orderNumber;
         private String customerName;
         private String customerPhone;
         private LocalDateTime orderDate;
