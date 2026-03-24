@@ -27,7 +27,7 @@ public class DashboardService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final StockBatchRepository stockBatchRepository;
-    private final SettingService settingService; // 🌟 ထပ်တိုးထားသည်
+    private final SettingService settingService;
 
     // 🌟 အချိန်ကာလကို တွက်ချက်ပေးမည့် Helper
     private LocalDateTime[] getDateRange(String filter) {
@@ -128,5 +128,12 @@ public class DashboardService {
         } catch (Exception e) {
             throw new RuntimeException("Excel report ထုတ်ရာတွင် အမှားရှိပါသည်။");
         }
+    }
+
+    // 🌟 အရောင်းရဆုံး ပစ္စည်းများကို ဆွဲထုတ်မည့် API (Build Error ရှင်းရန်)
+    public List<DashboardDTO.TopProduct> getTopProducts() {
+        // လောလောဆယ် Build အောင်ရန်နှင့် Error မတက်ရန် Empty List ပြန်ပေးထားပါသည်။
+        // (နောက်ပိုင်းမှ Order များကို တွက်ချက်သည့် Logic အစစ် ထည့်နိုင်ပါသည်)
+        return java.util.Collections.emptyList();
     }
 }
