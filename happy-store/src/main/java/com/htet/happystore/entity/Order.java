@@ -37,7 +37,7 @@ public class Order {
     @Column(unique = true)
     private String orderNumber; // ဥပမာ - ORD-240308-0001
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
