@@ -17,22 +17,24 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // 🌟 Admin Email ရှိမရှိ အရင်စစ်မည်
         if (userRepository.findByEmail("admin@happystore.com").isEmpty()) {
+
+            // 🌟 Render settings ထဲက "ADMIN_INITIAL_PASSWORD" ကို လှမ်းယူမည်
+            String adminPassword = System.getenv("ADMIN_INITIAL_PASSWORD");
+            if (adminPassword == null) adminPassword = "defaultAdmin123"; // Variable မရှိလျှင် သုံးမည့် fallback
+
             User admin = new User();
             admin.setFullName("Super Admin");
             admin.setEmail("admin@happystore.com");
             admin.setPhone("09123456789");
-
-            // 🌟 Code ထဲမှာ အသေမရေးတော့ဘဲ Environment Variable ကနေ ဖတ်ခိုင်းပါမည်
-            String adminPassword = System.getenv("ADMIN_INITIAL_PASSWORD");
-            if (adminPassword == null) adminPassword = "defaultPassword123"; // Variable မရှိရင် သုံးမည့် default
-
             admin.setPassword(passwordEncoder.encode(adminPassword));
-            admin.setRole(Role.ADMIN);
-            admin.setCountry(User.Country.MYANMAR);
+            admin.setRole(Role.ADMIN); //
+            admin.setCountry(User.Country.MYANMAR); //
             admin.setActive(true);
 
             userRepository.save(admin);
+            System.out.println("✅ Admin account has been seeded successfully.");
         }
     }
 }
