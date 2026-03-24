@@ -25,7 +25,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // ReportDTO.TopProduct နှင့် တွဲဖက်အသုံးပြုရန်
     @Query("SELECT i.product.name, SUM(i.quantity) FROM OrderItem i " +
-            "GROUP BY i.product.name " +
+            "GROUP BY i.product.id, i.product.name " + // 🌟 id ကိုပါ Group By တွင် ထည့်သည်
             "ORDER BY SUM(i.quantity) DESC")
     List<Object[]> findTopSellingProducts();
 }
