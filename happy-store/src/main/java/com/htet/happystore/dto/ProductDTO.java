@@ -59,16 +59,4 @@ public class ProductDTO {
         private LocalDate expiryDate;
         private BigDecimal newSalePriceVND; // 🌟 ဒီဈေးဖြင့် Product ရဲ့ Live ဈေးကိုပါ Update လုပ်မည်
     }
-
-    @Data
-    public static class ExcelRequest {
-        private String name;
-        private Double weightGram;
-        private BigDecimal originalPriceMMK;
-        private BigDecimal kiloRateMMK;
-        private BigDecimal salePriceVND;
-        private Integer quantity;
-        private LocalDate arrivalDate;
-        private LocalDate expiryDate;
-    }
 }

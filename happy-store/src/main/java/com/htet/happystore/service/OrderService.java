@@ -152,7 +152,7 @@ public class OrderService {
     }
 
     // ==========================================
-    // 2. Admin: Fulfill Preorder (Preorder ကို Stock နှုတ်ခြင်း)
+    // 2. Admin: Fulfill Preorder (Preorder ကို Stock နှုတ်ခြင်း နှင့် ဈေးနှုန်းအသစ် ချိန်ညှိခြင်း)
     // ==========================================
     @Transactional
     public void fulfillPreorder(Long orderId) {
@@ -164,10 +164,14 @@ public class OrderService {
         }
 
         List<OrderItem> additionalItems = new ArrayList<>();
+        BigDecimal newItemsTotal = BigDecimal.ZERO; // 🌟 ဈေးနှုန်းအသစ်ဖြင့် ပေါင်းမည့် ကိန်းရှင်
 
         for (OrderItem item : order.getItems()) {
             Product product = item.getProduct();
             int neededQty = item.getQuantity();
+
+            // 🌟 ဈေးနှုန်းအသစ်ကို ယူပါမည် (Market Price)
+            BigDecimal currentPriceVND = product.getCurrentPriceVND() != null ? product.getCurrentPriceVND() : BigDecimal.ZERO;
 
             List<StockBatch> availableBatches = batchRepository.findAvailableBatchesForUpdate(product.getId());
             boolean isFirstBatch = true;
@@ -182,6 +186,7 @@ public class OrderService {
                 if (isFirstBatch) {
                     item.setBatch(batch);
                     item.setQuantity(qtyToDeduct);
+                    item.setPriceAtPurchaseVND(currentPriceVND); // 🌟 ဈေးနှုန်းအသစ် သတ်မှတ်သည်
                     isFirstBatch = false;
                 } else {
                     // Preorder ကို ဖြည့်တင်းရာတွင် Batch (၂) ခုကွဲသွားပါက အမြတ်တွက်ရန် OrderItem အသစ်ခွဲထုတ်ပေးသည်
@@ -189,10 +194,13 @@ public class OrderService {
                     splitItem.setOrder(order);
                     splitItem.setProduct(product);
                     splitItem.setQuantity(qtyToDeduct);
-                    splitItem.setPriceAtPurchaseVND(item.getPriceAtPurchaseVND());
+                    splitItem.setPriceAtPurchaseVND(currentPriceVND); // 🌟 ဈေးနှုန်းအသစ် သတ်မှတ်သည်
                     splitItem.setBatch(batch);
                     additionalItems.add(splitItem);
                 }
+
+                // 🌟 Subtotal အသစ်အတွက် ပေါင်းထည့်မည်
+                newItemsTotal = newItemsTotal.add(currentPriceVND.multiply(BigDecimal.valueOf(qtyToDeduct)));
                 neededQty -= qtyToDeduct;
             }
             if (neededQty > 0) {
@@ -202,6 +210,15 @@ public class OrderService {
 
         order.getItems().addAll(additionalItems);
         order.setStatus(Order.OrderStatus.PENDING);
+
+        // 🌟 Order ၏ စုစုပေါင်းတန်ဖိုး (Total Amount) ကို အသစ်ပြန်လည် တွက်ချက်ခြင်း
+        BigDecimal finalTotal = newItemsTotal;
+        // COD ဖြစ်ပြီး Free Delivery Limit မကျော်ရင် ပို့ဆောင်ခ ပြန်ပေါင်းထည့်မည်
+        if (order.getDeliveryType() == Order.DeliveryType.COD && newItemsTotal.compareTo(FREE_DELIVERY_THRESHOLD) < 0) {
+            finalTotal = finalTotal.add(DELIVERY_FEE);
+        }
+        order.setTotalAmountVND(finalTotal);
+
         orderRepository.save(order);
     }
 
