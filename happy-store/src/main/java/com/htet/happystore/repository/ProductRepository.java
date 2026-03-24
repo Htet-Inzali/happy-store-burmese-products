@@ -19,9 +19,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             "HAVING COALESCE(SUM(b.remainingQuantity), 0) <= :threshold")
     List<Object[]> findLowStockProducts(@Param("threshold") Long threshold);
 
-    // 🌟 ပြင်ဆင်ချက်: (b.remainingQuantity > 0) ဆိုသော ကန့်သတ်ချက်ကို ဖြုတ်လိုက်သဖြင့်
-    // Stock (0) ဖြစ်သွားသော Product များလည်း ပျောက်မသွားတော့ဘဲ "Preorder" အနေဖြင့် ဆက်ပေါ်နေပါမည်။
+    // 🌟 ပြင်ဆင်ချက်: ORDER BY p.id ASC ထည့်သွင်းထားသဖြင့် အမြဲတမ်း ID အစဉ်လိုက်သာ ပေါ်ပါမည်
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.batches b " +
-            "WHERE p.isActive = true")
+            "WHERE p.isActive = true ORDER BY p.id ASC")
     List<Product> findAllActiveWithBatches();
 }

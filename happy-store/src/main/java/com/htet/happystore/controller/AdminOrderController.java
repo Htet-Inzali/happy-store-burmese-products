@@ -20,7 +20,7 @@ import java.util.Map;
 public class AdminOrderController {
 
     private final OrderService orderService;
-    private final SalesReportService salesReportService; // 🌟 Report အတွက်
+    private final SalesReportService salesReportService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<OrderDTO.AdminResponse>>> getAllOrders() {
@@ -33,12 +33,18 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success(null, "Order Status ပြောင်းလဲခြင်း အောင်မြင်ပါသည်။"));
     }
 
+    // 🌟 Preorder ကို Stock နှုတ်ပြီး အတည်ပြုမည့် API အသစ်
+    @PostMapping("/{orderId}/fulfill")
+    public ResponseEntity<ApiResponse<String>> fulfillPreorder(@PathVariable Long orderId) {
+        orderService.fulfillPreorder(orderId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Preorder အတွက် Stock နှုတ်ယူပြီး အတည်ပြုလိုက်ပါပြီ။"));
+    }
+
     @GetMapping("/summary/today")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getTodaySummary() {
         return ResponseEntity.ok(ApiResponse.success(orderService.getDailySalesSummary(), "ယနေ့ အရောင်းအနှစ်ချုပ်။"));
     }
 
-    // 🌟 Sales Report API အသစ်
     @GetMapping("/reports/sales")
     public ResponseEntity<ApiResponse<List<ReportDTO.Sales>>> getSalesReport(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,

@@ -19,7 +19,7 @@ public class FileUploadService {
 
     private Path productUploadPath;
     private final Set<String> allowedExtensions = Set.of("jpg", "jpeg", "png", "webp");
-    private final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    private final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 5MB
 
     @PostConstruct
     public void init() throws IOException {
