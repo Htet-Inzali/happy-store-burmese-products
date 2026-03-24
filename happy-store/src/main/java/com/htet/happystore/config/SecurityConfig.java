@@ -53,10 +53,12 @@ public class SecurityConfig {
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/settings/all").permitAll() // 🌟 Settings ယူရန် Public ဖွင့်ထားသည်
                         .requestMatchers("/uploads/**").permitAll()
 
                         // 🌟 Admin သီးသန့် လမ်းကြောင်းများ
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/settings/update").hasRole("ADMIN") // 🌟 Settings ပြင်ရန် Admin သီးသန့်
 
                         // 🌟 Login ဝင်ထားသော User/Admin အားလုံး သုံးနိုင်သော လမ်းကြောင်းများ
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
