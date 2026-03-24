@@ -17,7 +17,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,6 +27,7 @@ public class DashboardService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final StockBatchRepository stockBatchRepository;
+    private final SettingService settingService; // 🌟 ထပ်တိုးထားသည်
 
     // 🌟 အချိန်ကာလကို တွက်ချက်ပေးမည့် Helper
     private LocalDateTime[] getDateRange(String filter) {
@@ -52,6 +52,7 @@ public class DashboardService {
 
         BigDecimal revenue = BigDecimal.ZERO;
         BigDecimal totalCost = BigDecimal.ZERO;
+        BigDecimal currentExchangeRate = settingService.getExchangeRate(); // 🌟 Dynamic Rate ယူရန်
 
         for (Order order : orders) {
             if (order.getStatus() != Order.OrderStatus.CANCELLED) {
@@ -60,7 +61,9 @@ public class DashboardService {
                     if (item.getBatch() != null) {
                         BigDecimal originalCost = item.getBatch().getOriginalPriceMMK() != null ? item.getBatch().getOriginalPriceMMK() : BigDecimal.ZERO;
                         BigDecimal kiloCost = item.getBatch().getCalculatedKiloCost() != null ? item.getBatch().getCalculatedKiloCost() : BigDecimal.ZERO;
-                        BigDecimal costVND = originalCost.add(kiloCost).multiply(new BigDecimal("6.6"));
+
+                        // 🌟 Hardcode 6.6 အစား Dynamic Rate ကို ပြောင်းသုံးထားသည်
+                        BigDecimal costVND = originalCost.add(kiloCost).multiply(currentExchangeRate);
                         totalCost = totalCost.add(costVND.multiply(BigDecimal.valueOf(item.getQuantity())));
                     }
                 }
@@ -95,21 +98,6 @@ public class DashboardService {
                     dto.setExpiryDate(b.getExpiryDate());
                     return dto;
                 }).collect(Collectors.toList());
-    }
-
-    // 🌟 အရောင်းရဆုံး ပစ္စည်း ၅ မျိုး (Top Products)
-    public List<DashboardDTO.TopProduct> getTopProducts() {
-        List<Object[]> results = orderRepository.findTopSellingProducts();
-        List<DashboardDTO.TopProduct> topProducts = new ArrayList<>();
-        int limit = Math.min(results.size(), 5); // အများဆုံး ၅ ခုသာ ပြမည်
-        for (int i = 0; i < limit; i++) {
-            Object[] row = results.get(i);
-            DashboardDTO.TopProduct dto = new DashboardDTO.TopProduct();
-            dto.setName((String) row[0]);
-            dto.setTotalSold(((Number) row[1]).longValue());
-            topProducts.add(dto);
-        }
-        return topProducts;
     }
 
     // 🌟 Excel ဖိုင်အစစ် ထုတ်ပေးမည့် Logic (Apache POI)

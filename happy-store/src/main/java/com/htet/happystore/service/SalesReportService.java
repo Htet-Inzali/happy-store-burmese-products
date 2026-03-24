@@ -40,34 +40,41 @@ public class SalesReportService {
 
         for (Order order : orders) {
             for (OrderItem item : order.getItems()) {
-
                 ReportDTO.Sales dto = new ReportDTO.Sales();
                 dto.setOrderDate(order.getOrderDate());
                 dto.setProductName(item.getProduct().getName());
                 dto.setQuantity(item.getQuantity());
                 dto.setSalePriceVND(item.getPriceAtPurchaseVND());
 
-                BigDecimal original = item.getBatch().getOriginalPriceMMK() != null
-                        ? item.getBatch().getOriginalPriceMMK() : BigDecimal.ZERO;
-                BigDecimal kiloCost = item.getBatch().getCalculatedKiloCost();
-                BigDecimal costPerItemMMK = original.add(kiloCost);
-                dto.setCostPerItemMMK(costPerItemMMK);
+                // 🌟 Batch မရှိခဲ့လျှင် အမှားမတက်စေရန် စစ်ဆေးခြင်း
+                if (item.getBatch() != null) {
+                    BigDecimal original = item.getBatch().getOriginalPriceMMK() != null
+                            ? item.getBatch().getOriginalPriceMMK() : BigDecimal.ZERO;
+                    BigDecimal kiloCost = item.getBatch().getCalculatedKiloCost();
+                    BigDecimal costPerItemMMK = original.add(kiloCost);
+                    dto.setCostPerItemMMK(costPerItemMMK);
+
+                    BigDecimal costPerItemVND = costPerItemMMK
+                            .multiply(exchangeRate)
+                            .setScale(2, RoundingMode.HALF_UP);
+
+                    BigDecimal profitPerItemVND = item.getPriceAtPurchaseVND().subtract(costPerItemVND);
+                    dto.setProfitPerItemVND(profitPerItemVND);
+
+                    BigDecimal totalProfitVND = profitPerItemVND
+                            .multiply(BigDecimal.valueOf(item.getQuantity()))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    dto.setTotalProfitVND(totalProfitVND);
+                } else {
+                    // Batch အချက်အလက်မရှိသော အော်ဒါဟောင်းများအတွက် 0 သတ်မှတ်မည်
+                    dto.setCostPerItemMMK(BigDecimal.ZERO);
+                    dto.setProfitPerItemVND(BigDecimal.ZERO);
+                    dto.setTotalProfitVND(BigDecimal.ZERO);
+                }
 
                 BigDecimal totalSaleVND = item.getPriceAtPurchaseVND()
                         .multiply(BigDecimal.valueOf(item.getQuantity()));
                 dto.setTotalSaleVND(totalSaleVND);
-
-                BigDecimal costPerItemVND = costPerItemMMK
-                        .multiply(exchangeRate)
-                        .setScale(2, RoundingMode.HALF_UP);
-
-                BigDecimal profitPerItemVND = item.getPriceAtPurchaseVND().subtract(costPerItemVND);
-                dto.setProfitPerItemVND(profitPerItemVND);
-
-                BigDecimal totalProfitVND = profitPerItemVND
-                        .multiply(BigDecimal.valueOf(item.getQuantity()))
-                        .setScale(2, RoundingMode.HALF_UP);
-                dto.setTotalProfitVND(totalProfitVND);
 
                 reports.add(dto);
             }
