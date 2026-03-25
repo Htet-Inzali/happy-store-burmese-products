@@ -132,8 +132,14 @@ public class DashboardService {
 
     // 🌟 အရောင်းရဆုံး ပစ္စည်းများကို ဆွဲထုတ်မည့် API (Build Error ရှင်းရန်)
     public List<DashboardDTO.TopProduct> getTopProducts() {
-        // လောလောဆယ် Build အောင်ရန်နှင့် Error မတက်ရန် Empty List ပြန်ပေးထားပါသည်။
-        // (နောက်ပိုင်းမှ Order များကို တွက်ချက်သည့် Logic အစစ် ထည့်နိုင်ပါသည်)
-        return java.util.Collections.emptyList();
+        return orderRepository.findTopSellingProducts().stream()
+                .limit(10)
+                .map(row -> {
+                    DashboardDTO.TopProduct tp = new DashboardDTO.TopProduct();
+                    tp.setName((String) row[0]);
+                    tp.setTotalSold(((Number) row[1]).longValue());
+                    return tp;
+                })
+                .collect(Collectors.toList());
     }
 }

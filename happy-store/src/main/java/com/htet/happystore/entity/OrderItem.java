@@ -25,8 +25,8 @@ public class OrderItem {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id", nullable = false)
-    private StockBatch batch; // Admin Profit တွက်ရန် မရှိမဖြစ်လိုအပ်
+    @JoinColumn(name = "batch_id")
+    private StockBatch batch; // Preorder တွင် null ဖြစ်နိုင်သည်၊ Fulfill လုပ်ပြီးမှ assign ပြုလုပ်မည်
 
     @Min(1)
     @Column(nullable = false)

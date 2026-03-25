@@ -8,15 +8,16 @@ import com.htet.happystore.repository.UserRepository;
 import com.htet.happystore.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -24,9 +25,7 @@ public class AuthController {
 
     private final UserService userService;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
-    // 🌟 Spring Security အစစ်မှ စစ်ဆေးရန် AuthenticationManager ကို ထပ်တိုးထားသည်
     private final AuthenticationManager authenticationManager;
 
     @PostMapping("/register")
@@ -62,16 +61,11 @@ public class AuthController {
                 return ResponseEntity.ok(ApiResponse.success(new AuthDTO.Response(token, user.getRole().name()), "Login ဝင်ခြင်း အောင်မြင်ပါသည်။"));
             }
         } catch (Exception e) {
-            // 🌟 Exception မိခဲ့လျှင် (Password မှားခြင်း၊ အကောင့်မရှိခြင်း စသည်)
+            log.error("Login failed for credential: {} - Error: {}", request.getCredential(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("အကောင့် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။"));
         }
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("အကောင့် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။"));
     }
 
-    // 🌟 Database အတွက် Password အမှန်ရယူရန် ဖြတ်လမ်း API (Testing အတွက်)
-    @GetMapping("/generate-hash")
-    public String generateHash(@RequestParam String password) {
-        return passwordEncoder.encode(password);
-    }
 }

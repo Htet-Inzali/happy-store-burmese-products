@@ -32,7 +32,7 @@ public class AuthDTO {
         private String address;
 
         @NotBlank(message = "Country is required")
-        @Pattern(regexp = "MYANMAR|VIETNAM", message = "Country must be MYANMAR or VIETNAM")
+        @Pattern(regexp = "(?i)MYANMAR|VIETNAM|SINGAPORE", message = "Country must be MYANMAR, VIETNAM or SINGAPORE")
         private String country;
     }
 
