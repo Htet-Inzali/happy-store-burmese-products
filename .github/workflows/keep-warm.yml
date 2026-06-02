@@ -1,0 +1,23 @@
+name: Keep Backend Warm
+
+# Render free tier သည် ၁၅ မိနစ် idle ဖြစ်လျှင် backend ကို spin down လုပ်သည်။
+# ဤ workflow က ၁၀ မိနစ်တိုင်း ping လုပ်ပြီး backend ကို အမြဲနိုးထားသည် (cold start မဖြစ်စေရန်)။
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # ၁၀ မိနစ်တိုင်း
+  workflow_dispatch: {} # လက်ဖြင့် run လို့လည်း ရအောင်
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /api/ping
+        run: |
+          echo "Pinging backend at $(date -u)"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 \
+            https://happy-store-burmese-products.onrender.com/api/ping)
+          echo "Response code: $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning::Unexpected status $code (backend may be waking up)"
+          fi

@@ -51,6 +51,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 🌟 Public လမ်းကြောင်းများ
                         .requestMatchers("/").permitAll()
+                        .requestMatchers("/api/ping").permitAll() // 🌟 Keep-warm ping (public)
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings/all").permitAll() // 🌟 Settings ယူရန် Public ဖွင့်ထားသည်
