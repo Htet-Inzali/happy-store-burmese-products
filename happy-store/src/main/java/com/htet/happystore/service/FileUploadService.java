@@ -1,64 +1,112 @@
 package com.htet.happystore.service;
 
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class FileUploadService {
 
-    @Value("${app.upload.dir}")
-    private String uploadDir;
+    private static final Logger log = LoggerFactory.getLogger(FileUploadService.class);
 
-    private Path productUploadPath;
+    private final Cloudinary cloudinary;
+
+    private static final String FOLDER = "happystore/products";
     private final Set<String> allowedExtensions = Set.of("jpg", "jpeg", "png", "webp");
     private final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-    @PostConstruct
-    public void init() throws IOException {
-        productUploadPath = Paths.get(uploadDir, "products").toAbsolutePath().normalize();
-        Files.createDirectories(productUploadPath);
-    }
-
+    /**
+     * ပုံကို Cloudinary သို့ upload လုပ်ပြီး secure URL (https://res.cloudinary.com/...) ကို ပြန်ပေးသည်။
+     * Render restart ဖြစ်လျှင်လည်း ပုံများ မပျောက်တော့ပါ (Cloudinary သည် permanent storage ဖြစ်သည်)။
+     */
     public String saveImage(MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) throw new IOException("File is empty");
-        if (file.getSize() > MAX_FILE_SIZE) throw new IOException("File size must be less than 5MB");
+        if (file.getSize() > MAX_FILE_SIZE) throw new IOException("File size must be less than 10MB");
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isBlank()) throw new IOException("Invalid file name");
 
-        originalFilename = StringUtils.cleanPath(originalFilename);
-        if (originalFilename.contains("..")) throw new IOException("Invalid file name: path traversal detected");
-
         String extension = getFileExtension(originalFilename);
-        if (!allowedExtensions.contains(extension.toLowerCase())) throw new IOException("Only JPG, PNG, WEBP images are allowed");
+        if (!allowedExtensions.contains(extension.toLowerCase())) {
+            throw new IOException("Only JPG, PNG, WEBP images are allowed");
+        }
 
-        String fileName = UUID.randomUUID() + "." + extension;
-        Path filePath = productUploadPath.resolve(fileName).normalize();
+        // public_id ကို UUID ဖြင့် သတ်မှတ်၍ ဖိုင်အမည် တိုက်မှု မဖြစ်စေရန် ကာကွယ်သည်
+        String publicId = UUID.randomUUID().toString();
 
-        if (!filePath.startsWith(productUploadPath)) throw new IOException("Invalid file path");
+        Map<String, Object> options = ObjectUtils.asMap(
+                "folder", FOLDER,
+                "public_id", publicId,
+                "resource_type", "image",
+                "overwrite", true,
+                // ပုံကို အလိုအလျောက် ချုံ့ပြီး bandwidth/storage ချွေတာသည်
+                "transformation", new com.cloudinary.Transformation()
+                        .quality("auto")
+                        .fetchFormat("auto")
+        );
 
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-        return "/uploads/products/" + fileName;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = cloudinary.uploader().upload(file.getBytes(), options);
+        String secureUrl = (String) result.get("secure_url");
+        if (secureUrl == null) {
+            secureUrl = (String) result.get("url");
+        }
+        log.info("Image uploaded to Cloudinary: {}", secureUrl);
+        return secureUrl;
     }
 
-    public void deleteImage(String imagePath) throws IOException {
-        if (imagePath == null || imagePath.isBlank()) return;
+    /**
+     * Cloudinary URL မှ public_id ကို ထုတ်ယူ၍ ပုံကို ဖျက်သည်။ ဖျက်၍ မရလျှင်လည်း error မတက်စေဘဲ log သာ ထုတ်သည်။
+     */
+    public void deleteImage(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return;
 
-        String relativePath = imagePath.replace("/uploads/", "");
-        Path basePath = Paths.get(uploadDir).toAbsolutePath().normalize();
-        Path filePath = basePath.resolve(relativePath).normalize();
+        // Cloudinary URL မဟုတ်ပါက (ဥပမာ ဟောင်းသော /uploads/... path) ကျော်သွားသည်
+        if (!imageUrl.contains("res.cloudinary.com")) {
+            return;
+        }
 
-        if (!filePath.startsWith(basePath)) throw new IOException("Invalid file path: path traversal detected");
+        try {
+            String publicId = extractPublicId(imageUrl);
+            if (publicId != null) {
+                cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+                log.info("Image deleted from Cloudinary: {}", publicId);
+            }
+        } catch (Exception e) {
+            // ပုံဖျက်ခြင်း မအောင်မြင်လျှင်လည်း ပစ္စည်းဖျက်ခြင်းကို ဆက်လုပ်နိုင်စေရန် error မ throw ပါ
+            log.warn("Failed to delete image from Cloudinary: {}", e.getMessage());
+        }
+    }
 
-        Files.deleteIfExists(filePath);
+    /**
+     * https://res.cloudinary.com/<cloud>/image/upload/v123/happystore/products/<id>.jpg
+     * မှ "happystore/products/<id>" (extension မပါ) ကို ထုတ်ယူသည်။
+     */
+    private String extractPublicId(String url) {
+        int uploadIdx = url.indexOf("/upload/");
+        if (uploadIdx == -1) return null;
+
+        String path = url.substring(uploadIdx + "/upload/".length());
+        // version segment (v123456/) ကို ဖယ်ရှားသည်
+        if (path.matches("^v\\d+/.*")) {
+            path = path.substring(path.indexOf('/') + 1);
+        }
+        // extension ကို ဖယ်ရှားသည်
+        int dotIdx = path.lastIndexOf('.');
+        if (dotIdx != -1) {
+            path = path.substring(0, dotIdx);
+        }
+        return path;
     }
 
     private String getFileExtension(String filename) {
