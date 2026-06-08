@@ -12,13 +12,18 @@ public class ProductDTO {
     public static class BulkRow {
         private String name;
         private Double weightGram;
-        private BigDecimal originalPriceMMK;
-        private BigDecimal kiloRateMMK;
+        private BigDecimal originalPriceMMK;   // ဝယ်ဈေး (အရင်း ၁)
+        private BigDecimal kiloRateMMK;        // သယ်ယူခ နှုန်း (အရင်း ၂)
+        private BigDecimal salePriceVND;       // 🌟 Admin ကိုယ်တိုင် သတ်မှတ်သော ရောင်းဈေး (VND)
         private Integer initialQuantity;
-        private BigDecimal currentPriceVND; // auto-တွက် ရောင်းဈေး (preview တွင် ပြရန်)
         private LocalDate arrivalDate;
         private LocalDate expiryDate;
-        private String imageUrl;            // Excel ထဲ embed ပုံကို Cloudinary တင်ပြီး ရလာသော URL
+        private String imageUrl;               // Excel ထဲ embed ပုံကို Cloudinary တင်ပြီး ရလာသော URL
+
+        // preview တွင် ပြရန် (DB မသိမ်း) — အရင်း breakdown
+        private BigDecimal totalCostMMK;       // ဝယ်ဈေး + သယ်ယူခ (စုစုပေါင်း အရင်း MMK)
+        private BigDecimal totalCostVND;       // အရင်း VND (× exchange rate)
+        private BigDecimal currentPriceVND;    // ရောင်းဈေး (salePriceVND နှင့် တူ — frontend compat)
     }
 
     @Data

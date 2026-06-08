@@ -35,12 +35,13 @@ public class ExcelService {
     // ===== Excel Column အစီအစဉ် (template နှင့် တစ်ပြေးညီ) =====
     private static final int COL_NAME = 0;            // A: ပစ္စည်းအမည်
     private static final int COL_WEIGHT = 1;          // B: အလေးချိန် (g)
-    private static final int COL_ORIGINAL_PRICE = 2;  // C: ဝယ်ဈေး (MMK)
-    private static final int COL_KILO_RATE = 3;       // D: Kilo Rate (MMK)
-    private static final int COL_QUANTITY = 4;        // E: အရေအတွက်
-    private static final int COL_ARRIVAL_DATE = 5;    // F: ရောက်ရှိရက် (optional)
-    private static final int COL_EXPIRY_DATE = 6;     // G: သက်တမ်းကုန်ရက် (optional)
-    // H (col 7): ပုံ — embed ပုံကို anchor row ဖြင့် တွဲသည် (cell value မဟုတ်)
+    private static final int COL_ORIGINAL_PRICE = 2;  // C: ဝယ်ဈေး (MMK) — အရင်း ၁
+    private static final int COL_KILO_RATE = 3;       // D: Kilo Rate (MMK) — အရင်း ၂
+    private static final int COL_SALE_PRICE = 4;      // E: 🌟 ရောင်းဈေး (VND) — Admin ကိုယ်တိုင် ထည့်
+    private static final int COL_QUANTITY = 5;        // F: အရေအတွက်
+    private static final int COL_ARRIVAL_DATE = 6;    // G: ရောက်ရှိရက် (optional)
+    private static final int COL_EXPIRY_DATE = 7;     // H: သက်တမ်းကုန်ရက် (optional)
+    // I (col 8): ပုံ — embed ပုံကို anchor/rich-data ဖြင့် တွဲသည် (cell value မဟုတ်)
 
     // 🌟 အဆင့် ၁ — Excel ကို ဖတ်၍ preview row များ ပြန်ပေးသည် (DB မသိမ်းသေး၊ ပုံတော့ Cloudinary တင်ပြီး)
     public List<com.htet.happystore.dto.ProductDTO.BulkRow> parseForPreview(MultipartFile file) throws IOException {
@@ -68,6 +69,7 @@ public class ExcelService {
                 BigDecimal weight = getNumericCell(row.getCell(COL_WEIGHT));
                 BigDecimal originalPrice = getNumericCell(row.getCell(COL_ORIGINAL_PRICE));
                 BigDecimal kiloRate = getNumericCell(row.getCell(COL_KILO_RATE));
+                BigDecimal salePrice = getNumericCell(row.getCell(COL_SALE_PRICE));
                 int qty = getNumericCell(row.getCell(COL_QUANTITY)).intValue();
 
                 LocalDate arrivalDate = getDateCell(row.getCell(COL_ARRIVAL_DATE));
@@ -83,8 +85,15 @@ public class ExcelService {
                 dto.setArrivalDate(arrivalDate);
                 dto.setExpiryDate(expiryDate);
 
-                // ရောင်းဈေး (currentPriceVND) ကို auto-တွက်၍ preview တွင် ပြသည်
-                dto.setCurrentPriceVND(settingService.calculateSalePriceVND(buildTransientBatch(weight, originalPrice, kiloRate)));
+                // 🌟 ရောင်းဈေးကို Admin ကိုယ်တိုင် Excel တွင် ထည့်သည် (auto-calc မဟုတ်တော့)
+                dto.setSalePriceVND(salePrice);
+                dto.setCurrentPriceVND(salePrice); // frontend preview compat
+
+                // 🌟 အရင်း (cost) breakdown — preview တွင် ရှင်းရှင်း ပြရန်
+                StockBatch tmpBatch = buildTransientBatch(weight, originalPrice, kiloRate);
+                BigDecimal totalCostMMK = tmpBatch.getTotalCostMMK(); // ဝယ်ဈေး + သယ်ယူခ
+                dto.setTotalCostMMK(totalCostMMK);
+                dto.setTotalCostVND(totalCostMMK.multiply(settingService.getExchangeRate()));
 
                 // embed ပုံ ရှိပါက Cloudinary တင်ပြီး URL ကို row တွင် ထည့်ပေးသည်
                 byte[] imageData = rowImages.get(i);
@@ -142,7 +151,10 @@ public class ExcelService {
             batch.setArrivalDate(arrivalDate);
             batch.setExpiryDate(r.getExpiryDate());
 
-            BigDecimal finalPriceVND = settingService.calculateSalePriceVND(batch);
+            // 🌟 ရောင်းဈေး — Admin ထည့်ထားသော ဈေးကို သုံးသည်။ မထည့်ထားလျှင်သာ auto-calc fallback
+            BigDecimal finalPriceVND = (r.getSalePriceVND() != null && r.getSalePriceVND().compareTo(BigDecimal.ZERO) > 0)
+                    ? r.getSalePriceVND()
+                    : settingService.calculateSalePriceVND(batch);
             batch.setSalePriceVND(finalPriceVND);
 
             product.setCurrentPriceVND(finalPriceVND);
