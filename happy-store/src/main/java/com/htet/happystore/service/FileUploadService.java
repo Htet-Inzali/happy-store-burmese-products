@@ -41,7 +41,19 @@ public class FileUploadService {
             throw new IOException("Only JPG, PNG, WEBP images are allowed");
         }
 
-        // public_id ကို UUID ဖြင့် သတ်မှတ်၍ ဖိုင်အမည် တိုက်မှု မဖြစ်စေရန် ကာကွယ်သည်
+        return uploadBytes(file.getBytes());
+    }
+
+    /**
+     * Excel ထဲမှ ထုတ်ယူသော embed ပုံ (byte array) ကို တိုက်ရိုက် Cloudinary သို့ upload လုပ်သည်။
+     */
+    public String saveImageBytes(byte[] data) throws IOException {
+        if (data == null || data.length == 0) throw new IOException("Image data is empty");
+        if (data.length > MAX_FILE_SIZE) throw new IOException("Image size must be less than 10MB");
+        return uploadBytes(data);
+    }
+
+    private String uploadBytes(byte[] data) throws IOException {
         String publicId = UUID.randomUUID().toString();
 
         Map<String, Object> options = ObjectUtils.asMap(
@@ -49,14 +61,13 @@ public class FileUploadService {
                 "public_id", publicId,
                 "resource_type", "image",
                 "overwrite", true,
-                // ပုံကို အလိုအလျောက် ချုံ့ပြီး bandwidth/storage ချွေတာသည်
                 "transformation", new com.cloudinary.Transformation()
                         .quality("auto")
                         .fetchFormat("auto")
         );
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> result = cloudinary.uploader().upload(file.getBytes(), options);
+        Map<String, Object> result = cloudinary.uploader().upload(data, options);
         String secureUrl = (String) result.get("secure_url");
         if (secureUrl == null) {
             secureUrl = (String) result.get("url");
