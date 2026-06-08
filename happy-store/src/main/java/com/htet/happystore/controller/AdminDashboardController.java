@@ -35,6 +35,12 @@ public class AdminDashboardController {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getTopProducts(), "အရောင်းရဆုံး ပစ္စည်းများ ရရှိပါပြီ။"));
     }
 
+    // 🌟 Sales Trend — chart အတွက် နေ့စဉ် ဝင်ငွေ/အမြတ်
+    @GetMapping("/sales-trend")
+    public ResponseEntity<ApiResponse<List<DashboardDTO.SalesTrendPoint>>> getSalesTrend(@RequestParam(defaultValue = "WEEK") String filter) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getSalesTrend(filter), "ရောင်းအား trend ရရှိပါပြီ။"));
+    }
+
     // 🌟 Excel Download အစစ်အတွက် API
     @GetMapping("/export/excel")
     public ResponseEntity<byte[]> exportExcel(@RequestParam(defaultValue = "TODAY") String filter) {

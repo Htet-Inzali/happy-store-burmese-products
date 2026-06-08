@@ -71,7 +71,50 @@ public class DashboardService {
         }
 
         summary.setTodayRevenue(revenue);
-        summary.setTodayProfit(revenue.subtract(totalCost));
+        BigDecimal profit = revenue.subtract(totalCost);
+        summary.setTodayProfit(profit);
+
+        // 🌟 ထပ်တိုး metrics — ကာလအတွင်း orders (cancelled မပါ)
+        List<Order> validOrders = orders.stream()
+                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELLED)
+                .collect(Collectors.toList());
+
+        long totalOrders = validOrders.size();
+        summary.setTotalOrdersCount(totalOrders);
+
+        long itemsSold = validOrders.stream()
+                .flatMap(o -> o.getItems().stream())
+                .mapToLong(OrderItem::getQuantity).sum();
+        summary.setTotalItemsSold(itemsSold);
+
+        summary.setAverageOrderValueVND(totalOrders > 0
+                ? revenue.divide(BigDecimal.valueOf(totalOrders), 0, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO);
+
+        // Online vs Walk-in (POS) ခွဲခြားခြင်း
+        BigDecimal walkInRev = validOrders.stream()
+                .filter(o -> o.getOrderNumber() != null && o.getOrderNumber().startsWith("POS-"))
+                .map(o -> o.getTotalAmountVND() != null ? o.getTotalAmountVND() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        summary.setWalkInRevenue(walkInRev);
+        summary.setOnlineRevenue(revenue.subtract(walkInRev));
+
+        summary.setProfitMarginPercent(revenue.compareTo(BigDecimal.ZERO) > 0
+                ? profit.multiply(BigDecimal.valueOf(100)).divide(revenue, 1, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO);
+
+        // လက်ကျန် stock ၏ ကုန်ကျစရိတ် တန်ဖိုး (inventory value)
+        BigDecimal inventoryValue = stockBatchRepository.findAll().stream()
+                .filter(b -> b.getRemainingQuantity() != null && b.getRemainingQuantity() > 0)
+                .map(b -> {
+                    BigDecimal orig = b.getOriginalPriceMMK() != null ? b.getOriginalPriceMMK() : BigDecimal.ZERO;
+                    BigDecimal kilo = b.getCalculatedKiloCost() != null ? b.getCalculatedKiloCost() : BigDecimal.ZERO;
+                    return orig.add(kilo).multiply(currentExchangeRate).multiply(BigDecimal.valueOf(b.getRemainingQuantity()));
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        summary.setInventoryValueVND(inventoryValue);
+
+        summary.setTotalActiveProducts(productRepository.findAllActiveWithBatches().size());
 
         summary.setNewOrdersCount(orderRepository.findAll().stream().filter(o -> o.getStatus() == Order.OrderStatus.PENDING).count());
         summary.setPendingPreordersCount(orderRepository.findAll().stream().filter(o -> o.getStatus() == Order.OrderStatus.PREORDER_PENDING).count());
@@ -84,6 +127,52 @@ public class DashboardService {
                 .filter(b -> b.getRemainingQuantity() > 0 && b.getExpiryDate() != null && !b.getExpiryDate().isAfter(thirtyDays)).count());
 
         return summary;
+    }
+
+    // 🌟 Sales Trend — နေ့စဉ် ဝင်ငွေ/အမြတ် (chart အတွက်)။ filter: TODAY(7d)/WEEK(7d)/MONTH(30d)
+    public List<DashboardDTO.SalesTrendPoint> getSalesTrend(String filter) {
+        int days = "MONTH".equalsIgnoreCase(filter) ? 30 : 7;
+        LocalDate today = LocalDate.now();
+        LocalDate start = today.minusDays(days - 1L);
+
+        LocalDateTime rangeStart = start.atStartOfDay();
+        LocalDateTime rangeEnd = today.atTime(LocalTime.MAX);
+        List<Order> orders = orderRepository.findByOrderDateBetween(rangeStart, rangeEnd).stream()
+                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELLED)
+                .collect(Collectors.toList());
+
+        BigDecimal exchangeRate = settingService.getExchangeRate();
+
+        // နေ့တိုင်းအတွက် point တစ်ခုစီ (data မရှိရင်တောင် 0 ဖြင့်) တည်ဆောက်သည်
+        List<DashboardDTO.SalesTrendPoint> points = new java.util.ArrayList<>();
+        for (int i = 0; i < days; i++) {
+            LocalDate day = start.plusDays(i);
+            List<Order> dayOrders = orders.stream()
+                    .filter(o -> o.getOrderDate() != null && o.getOrderDate().toLocalDate().equals(day))
+                    .collect(Collectors.toList());
+
+            BigDecimal dayRevenue = BigDecimal.ZERO;
+            BigDecimal dayCost = BigDecimal.ZERO;
+            for (Order order : dayOrders) {
+                dayRevenue = dayRevenue.add(order.getTotalAmountVND() != null ? order.getTotalAmountVND() : BigDecimal.ZERO);
+                for (OrderItem item : order.getItems()) {
+                    if (item.getBatch() != null) {
+                        BigDecimal orig = item.getBatch().getOriginalPriceMMK() != null ? item.getBatch().getOriginalPriceMMK() : BigDecimal.ZERO;
+                        BigDecimal kilo = item.getBatch().getCalculatedKiloCost() != null ? item.getBatch().getCalculatedKiloCost() : BigDecimal.ZERO;
+                        BigDecimal costVND = orig.add(kilo).multiply(exchangeRate);
+                        dayCost = dayCost.add(costVND.multiply(BigDecimal.valueOf(item.getQuantity())));
+                    }
+                }
+            }
+
+            DashboardDTO.SalesTrendPoint p = new DashboardDTO.SalesTrendPoint();
+            p.setDate(day);
+            p.setRevenue(dayRevenue);
+            p.setProfit(dayRevenue.subtract(dayCost));
+            p.setOrders(dayOrders.size());
+            points.add(p);
+        }
+        return points;
     }
 
     public List<DashboardDTO.ExpiringBatch> getExpiringBatchesAlert() {
