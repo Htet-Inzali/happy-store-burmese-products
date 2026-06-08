@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/inventory")
@@ -33,6 +34,20 @@ public class AdminInventoryController {
     public ResponseEntity<ApiResponse<String>> uploadExcel(@RequestParam("file") MultipartFile file) throws IOException {
         excelService.importProductsFromExcel(file);
         return ResponseEntity.ok(ApiResponse.success(null, "ပစ္စည်းစာရင်းများ အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ။"));
+    }
+
+    // 🌟 Excel ကို ဖတ်၍ preview ပြန်ပေးသည် (DB မသိမ်းသေး — ပုံတော့ Cloudinary တင်ပြီး)
+    @PostMapping("/upload-preview")
+    public ResponseEntity<ApiResponse<List<ProductDTO.BulkRow>>> uploadPreview(@RequestParam("file") MultipartFile file) throws IOException {
+        List<ProductDTO.BulkRow> rows = excelService.parseForPreview(file);
+        return ResponseEntity.ok(ApiResponse.success(rows, "Preview အသင့်ဖြစ်ပါပြီ။"));
+    }
+
+    // 🌟 Admin အတည်ပြုပြီးနောက် preview row များကို DB သို့ သိမ်းသည်
+    @PostMapping("/products/bulk")
+    public ResponseEntity<ApiResponse<String>> saveBulk(@RequestBody List<ProductDTO.BulkRow> rows) {
+        excelService.saveBulkProducts(rows);
+        return ResponseEntity.ok(ApiResponse.success(null, "ပစ္စည်းများအားလုံး သိမ်းဆည်းပြီးပါပြီ။"));
     }
 
     @PostMapping("/products")

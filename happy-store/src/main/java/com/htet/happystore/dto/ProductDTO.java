@@ -7,6 +7,20 @@ import java.util.List;
 
 public class ProductDTO {
 
+    // 🌟 Excel bulk upload — preview နှင့် bulk save အတွက် တစ်ကြောင်းချင်း row
+    @Data
+    public static class BulkRow {
+        private String name;
+        private Double weightGram;
+        private BigDecimal originalPriceMMK;
+        private BigDecimal kiloRateMMK;
+        private Integer initialQuantity;
+        private BigDecimal currentPriceVND; // auto-တွက် ရောင်းဈေး (preview တွင် ပြရန်)
+        private LocalDate arrivalDate;
+        private LocalDate expiryDate;
+        private String imageUrl;            // Excel ထဲ embed ပုံကို Cloudinary တင်ပြီး ရလာသော URL
+    }
+
     @Data
     public static class Request {
         private String name;

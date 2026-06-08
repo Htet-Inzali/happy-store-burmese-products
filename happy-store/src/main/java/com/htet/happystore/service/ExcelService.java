@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -41,17 +42,16 @@ public class ExcelService {
     private static final int COL_EXPIRY_DATE = 6;     // G: သက်တမ်းကုန်ရက် (optional)
     // H (col 7): ပုံ — embed ပုံကို anchor row ဖြင့် တွဲသည် (cell value မဟုတ်)
 
-    @Transactional
-    public void importProductsFromExcel(MultipartFile file) throws IOException {
-
+    // 🌟 အဆင့် ၁ — Excel ကို ဖတ်၍ preview row များ ပြန်ပေးသည် (DB မသိမ်းသေး၊ ပုံတော့ Cloudinary တင်ပြီး)
+    public List<com.htet.happystore.dto.ProductDTO.BulkRow> parseForPreview(MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Excel file is empty");
         }
 
+        List<com.htet.happystore.dto.ProductDTO.BulkRow> rows = new java.util.ArrayList<>();
+
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
-
-            // 🌟 Excel ထဲ embed ထားသော ပုံများကို row index ဖြင့် ထုတ်ယူသည်
             Map<Integer, byte[]> rowImages = extractEmbeddedImages(sheet);
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -70,47 +70,98 @@ public class ExcelService {
                 if (arrivalDate == null) arrivalDate = LocalDate.now();
                 LocalDate expiryDate = getDateCell(row.getCell(COL_EXPIRY_DATE));
 
-                Product product = productRepository.findByNameIgnoreCase(name)
-                        .orElseGet(() -> {
-                            Product newProduct = new Product();
-                            newProduct.setName(name);
-                            newProduct.setWeightGram(weight.doubleValue());
-                            newProduct.setActive(true);
-                            newProduct.setSku("SKU-" + System.currentTimeMillis()); // 🌟 SKU Auto-generate
-                            return productRepository.save(newProduct);
-                        });
+                com.htet.happystore.dto.ProductDTO.BulkRow dto = new com.htet.happystore.dto.ProductDTO.BulkRow();
+                dto.setName(name);
+                dto.setWeightGram(weight.doubleValue());
+                dto.setOriginalPriceMMK(originalPrice);
+                dto.setKiloRateMMK(kiloRate);
+                dto.setInitialQuantity(qty);
+                dto.setArrivalDate(arrivalDate);
+                dto.setExpiryDate(expiryDate);
 
-                // 🌟 ဤ row တွင် ပုံ embed ထားပါက Cloudinary သို့ upload လုပ်၍ product နှင့် တွဲသည်
+                // ရောင်းဈေး (currentPriceVND) ကို auto-တွက်၍ preview တွင် ပြသည်
+                dto.setCurrentPriceVND(settingService.calculateSalePriceVND(buildTransientBatch(weight, originalPrice, kiloRate)));
+
+                // embed ပုံ ရှိပါက Cloudinary တင်ပြီး URL ကို row တွင် ထည့်ပေးသည်
                 byte[] imageData = rowImages.get(i);
                 if (imageData != null && imageData.length > 0) {
                     try {
-                        String imageUrl = fileUploadService.saveImageBytes(imageData);
-                        product.setImageUrl(imageUrl);
+                        dto.setImageUrl(fileUploadService.saveImageBytes(imageData));
                     } catch (Exception e) {
-                        // ပုံ upload မအောင်မြင်လျှင်လည်း ပစ္စည်းသွင်းခြင်းကို ဆက်လုပ်သည်
                         log.warn("Row {} ({}) ၏ ပုံ upload မအောင်မြင်ပါ: {}", i, name, e.getMessage());
                     }
                 }
 
-                StockBatch batch = new StockBatch();
-                batch.setProduct(product);
-                batch.setOriginalPriceMMK(originalPrice);
-                batch.setKiloRateMMK(kiloRate);
-                batch.setInitialQuantity(qty);
-                batch.setRemainingQuantity(qty);
-                batch.setArrivalDate(arrivalDate);
-                batch.setExpiryDate(expiryDate);
-
-                BigDecimal finalPriceVND = settingService.calculateSalePriceVND(batch);
-                batch.setSalePriceVND(finalPriceVND);
-
-                // 🌟 Excel အသစ်သွင်းလိုက်သည်နှင့် Product ၏ Live Price ကိုပါ တစ်ခါတည်း Update လုပ်ပေးခြင်း
-                product.setCurrentPriceVND(finalPriceVND);
-                productRepository.save(product);
-
-                batchRepository.save(batch);
+                rows.add(dto);
             }
         }
+        return rows;
+    }
+
+    // 🌟 အဆင့် ၂ — Admin အတည်ပြုပြီးနောက် preview row များကို DB သို့ သိမ်းသည်
+    @Transactional
+    public void saveBulkProducts(List<com.htet.happystore.dto.ProductDTO.BulkRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            throw new IllegalArgumentException("သိမ်းရန် ပစ္စည်း မရှိပါ။");
+        }
+
+        for (com.htet.happystore.dto.ProductDTO.BulkRow r : rows) {
+            if (r.getName() == null || r.getName().isBlank()) continue;
+
+            double weight = r.getWeightGram() != null ? r.getWeightGram() : 0;
+            BigDecimal originalPrice = r.getOriginalPriceMMK() != null ? r.getOriginalPriceMMK() : BigDecimal.ZERO;
+            BigDecimal kiloRate = r.getKiloRateMMK() != null ? r.getKiloRateMMK() : BigDecimal.ZERO;
+            int qty = r.getInitialQuantity() != null ? r.getInitialQuantity() : 0;
+            LocalDate arrivalDate = r.getArrivalDate() != null ? r.getArrivalDate() : LocalDate.now();
+
+            Product product = productRepository.findByNameIgnoreCase(r.getName())
+                    .orElseGet(() -> {
+                        Product p = new Product();
+                        p.setName(r.getName());
+                        p.setWeightGram(weight);
+                        p.setActive(true);
+                        p.setSku("SKU-" + System.currentTimeMillis());
+                        return productRepository.save(p);
+                    });
+
+            // ပုံ — Excel preview မှ လာသော imageUrl ရှိပါက သတ်မှတ်သည်
+            if (r.getImageUrl() != null && !r.getImageUrl().isBlank()) {
+                product.setImageUrl(r.getImageUrl());
+            }
+
+            StockBatch batch = new StockBatch();
+            batch.setProduct(product);
+            batch.setOriginalPriceMMK(originalPrice);
+            batch.setKiloRateMMK(kiloRate);
+            batch.setInitialQuantity(qty);
+            batch.setRemainingQuantity(qty);
+            batch.setArrivalDate(arrivalDate);
+            batch.setExpiryDate(r.getExpiryDate());
+
+            BigDecimal finalPriceVND = settingService.calculateSalePriceVND(batch);
+            batch.setSalePriceVND(finalPriceVND);
+
+            product.setCurrentPriceVND(finalPriceVND);
+            productRepository.save(product);
+            batchRepository.save(batch);
+        }
+    }
+
+    // ဈေးတွက်ရန် ယာယီ batch (DB မသိမ်း)
+    private StockBatch buildTransientBatch(BigDecimal weight, BigDecimal originalPrice, BigDecimal kiloRate) {
+        Product tmpProduct = new Product();
+        tmpProduct.setWeightGram(weight != null ? weight.doubleValue() : 0);
+        StockBatch batch = new StockBatch();
+        batch.setProduct(tmpProduct);
+        batch.setOriginalPriceMMK(originalPrice);
+        batch.setKiloRateMMK(kiloRate);
+        return batch;
+    }
+
+    // /upload endpoint (preview မပါ တိုက်ရိုက် import) — parse ပြီး တန်းသိမ်းသည်
+    @Transactional
+    public void importProductsFromExcel(MultipartFile file) throws IOException {
+        saveBulkProducts(parseForPreview(file));
     }
 
     /**
