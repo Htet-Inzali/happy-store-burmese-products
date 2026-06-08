@@ -32,6 +32,31 @@ public class OrderDTO {
         }
     }
 
+    // ==========================================
+    // Walk-in (ဆိုင်ရှေ့) ရောင်းအား — Admin သုံး
+    // ==========================================
+    @Data
+    public static class WalkInRequest {
+        @NotEmpty(message = "ရောင်းမည့် ပစ္စည်း အနည်းဆုံး တစ်ခု ရှိရမည်")
+        private List<Item> items;
+
+        private String customerName;  // optional — မထည့်ရင် "Walk-in Customer"
+        private String note;          // optional — မှတ်ချက်
+
+        @Data
+        public static class Item {
+            @NotNull(message = "Product ID is required")
+            private Long productId;
+
+            @NotNull(message = "Quantity is required")
+            @Min(value = 1, message = "Quantity must be at least 1")
+            private Integer quantity;
+
+            // optional — မထည့်ရင် product ၏ လက်ရှိ ရောင်းဈေး (currentPriceVND) သုံးမည်
+            private BigDecimal priceVND;
+        }
+    }
+
     @Data
     public static class UserResponse {
         private Long id;

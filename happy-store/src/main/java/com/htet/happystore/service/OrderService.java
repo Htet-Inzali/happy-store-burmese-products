@@ -25,9 +25,11 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final StockBatchRepository batchRepository;
+    private final UserRepository userRepository;
 
     private static final BigDecimal DELIVERY_FEE = new BigDecimal("30000");
     private static final BigDecimal FREE_DELIVERY_THRESHOLD = new BigDecimal("500000");
+    private static final String WALK_IN_PHONE = "WALK-IN-POS"; // Walk-in system user ၏ phone (login မဝင်နိုင်)
 
     // ==========================================
     // 1. User: Create Order (အော်ဒါတင်ခြင်း)
@@ -149,6 +151,92 @@ public class OrderService {
         savedOrder.setOrderNumber(String.format("%s-%s-%04d", prefix, datePart, savedOrder.getId()));
 
         return orderRepository.save(savedOrder);
+    }
+
+    // ==========================================
+    // 1.5 Admin: Walk-in Sale (ဆိုင်ရှေ့ ရောင်းအား — Stock နုတ်ပြီး ရောင်းအား report ထဲ ထည့်)
+    // ==========================================
+    @Transactional
+    public OrderDTO.AdminResponse createWalkInSale(OrderDTO.WalkInRequest request) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new IllegalArgumentException("ရောင်းမည့် ပစ္စည်း မရှိပါ။");
+        }
+
+        User walkInUser = getOrCreateWalkInUser();
+
+        Order order = new Order();
+        order.setUser(walkInUser);
+        order.setDeliveryType(Order.DeliveryType.PICKUP);
+        order.setStatus(Order.OrderStatus.DELIVERED); // ဆိုင်ရှေ့တွင် ရောင်းပြီးသား ဖြစ်၍ ပြီးစီး status
+        order.setShippingAddress("");
+        order.setContactPhone(
+                (request.getCustomerName() != null && !request.getCustomerName().isBlank())
+                        ? request.getCustomerName() : "Walk-in");
+        order.setItems(new ArrayList<>());
+
+        BigDecimal totalAmountVND = BigDecimal.ZERO;
+
+        for (OrderDTO.WalkInRequest.Item reqItem : request.getItems()) {
+            Product product = productRepository.findById(reqItem.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product မတွေ့ပါ"));
+
+            int neededQty = reqItem.getQuantity();
+
+            // ဈေး — admin override မရှိရင် product ၏ လက်ရှိ ရောင်းဈေး
+            BigDecimal priceVND = reqItem.getPriceVND() != null
+                    ? reqItem.getPriceVND()
+                    : (product.getCurrentPriceVND() != null ? product.getCurrentPriceVND() : BigDecimal.ZERO);
+
+            List<StockBatch> availableBatches = batchRepository.findAvailableBatchesForUpdate(product.getId());
+            for (StockBatch batch : availableBatches) {
+                if (neededQty <= 0) break;
+                int availableInBatch = batch.getRemainingQuantity();
+                int qtyToDeduct = Math.min(availableInBatch, neededQty);
+                if (qtyToDeduct <= 0) continue;
+
+                batch.setRemainingQuantity(availableInBatch - qtyToDeduct);
+                batchRepository.save(batch);
+
+                OrderItem orderItem = new OrderItem();
+                orderItem.setOrder(order);
+                orderItem.setProduct(product);
+                orderItem.setQuantity(qtyToDeduct);
+                orderItem.setPriceAtPurchaseVND(priceVND);
+                orderItem.setBatch(batch);
+                order.getItems().add(orderItem);
+
+                totalAmountVND = totalAmountVND.add(priceVND.multiply(BigDecimal.valueOf(qtyToDeduct)));
+                neededQty -= qtyToDeduct;
+            }
+
+            if (neededQty > 0) {
+                throw new IllegalStateException(product.getName() + " အတွက် Stock လက်ကျန် မလုံလောက်ပါ။");
+            }
+        }
+
+        order.setTotalAmountVND(totalAmountVND);
+
+        // ID ရရှိရန် အရင် Save → ထို့နောက် Order Number (POS prefix) ပြောင်း
+        Order savedOrder = orderRepository.save(order);
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
+        savedOrder.setOrderNumber(String.format("POS-%s-%04d", datePart, savedOrder.getId()));
+
+        return mapToAdminResponse(orderRepository.save(savedOrder));
+    }
+
+    // Walk-in order များအတွက် system user တစ်ခုကို တစ်ကြိမ်တည်း ဖန်တီး၍ ပြန်သုံးသည် (login မဝင်နိုင်)
+    private User getOrCreateWalkInUser() {
+        return userRepository.findByPhone(WALK_IN_PHONE).orElseGet(() -> {
+            User u = new User();
+            u.setFullName("Walk-in Customer");
+            u.setPhone(WALK_IN_PHONE);
+            // Login မဝင်နိုင်စေရန် encode မလုပ်ထားသော random password (BCrypt hash မဟုတ်၍ login fail မည်)
+            u.setPassword("!no-login!" + java.util.UUID.randomUUID());
+            u.setCountry(User.Country.MYANMAR);
+            u.setRole(Role.USER);
+            u.setActive(true);
+            return userRepository.save(u);
+        });
     }
 
     // ==========================================

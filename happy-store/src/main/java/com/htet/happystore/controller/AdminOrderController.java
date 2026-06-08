@@ -5,6 +5,7 @@ import com.htet.happystore.dto.OrderDTO;
 import com.htet.happystore.dto.ReportDTO;
 import com.htet.happystore.service.OrderService;
 import com.htet.happystore.service.SalesReportService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,14 @@ public class AdminOrderController {
     public ResponseEntity<ApiResponse<String>> updateStatus(@PathVariable Long orderId, @RequestParam("status") String status) {
         orderService.updateOrderStatus(orderId, status);
         return ResponseEntity.ok(ApiResponse.success(null, "Order Status ပြောင်းလဲခြင်း အောင်မြင်ပါသည်။"));
+    }
+
+    // 🌟 Walk-in (ဆိုင်ရှေ့) ရောင်းအား — Stock နုတ်ပြီး ရောင်းအား report ထဲ ထည့်
+    @PostMapping("/walk-in")
+    public ResponseEntity<ApiResponse<OrderDTO.AdminResponse>> createWalkInSale(
+            @Valid @RequestBody OrderDTO.WalkInRequest request) {
+        OrderDTO.AdminResponse response = orderService.createWalkInSale(request);
+        return ResponseEntity.ok(ApiResponse.success(response, "ဆိုင်ရှေ့ ရောင်းအား မှတ်တမ်းတင်ပြီး Stock နုတ်ပြီးပါပြီ။"));
     }
 
     // 🌟 Preorder ကို Stock နှုတ်ပြီး အတည်ပြုမည့် API အသစ်
