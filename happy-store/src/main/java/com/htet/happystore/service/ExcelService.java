@@ -50,9 +50,13 @@ public class ExcelService {
 
         List<com.htet.happystore.dto.ProductDTO.BulkRow> rows = new java.util.ArrayList<>();
 
-        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+        byte[] fileBytes = file.getBytes();
+
+        try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(fileBytes))) {
             Sheet sheet = workbook.getSheetAt(0);
+            // Floating picture (Insert → Picture) နှင့် "Place in cell" (rich-data) ပုံ နှစ်မျိုးလုံးကို ဖတ်သည်
             Map<Integer, byte[]> rowImages = extractEmbeddedImages(sheet);
+            rowImages.putAll(extractRichDataImages(fileBytes));
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -191,6 +195,87 @@ public class ExcelService {
         }
         log.info("Excel ထဲမှ embed ပုံ {} ပုံ တွေ့ရှိသည်", rowImages.size());
         return rowImages;
+    }
+
+    /**
+     * Excel ၏ "Place in cell" (IMAGE / rich-data) ပုံများကို ထုတ်ယူသည်။
+     * ဤပုံများသည် drawing shape မဟုတ်ဘဲ xl/richData ထဲ သိမ်းထားသဖြင့် POI drawing API ဖြင့် မရပါ။
+     * cell(vm) → valueMetadata → richValueRel → media file ဟု chain ဖြင့် map ၍ row index နှင့် တွဲသည်။
+     */
+    private Map<Integer, byte[]> extractRichDataImages(byte[] fileBytes) {
+        Map<Integer, byte[]> result = new HashMap<>();
+        try {
+            // 1) zip part အားလုံးကို memory ထဲ ဖတ်ယူသည်
+            Map<String, byte[]> parts = new HashMap<>();
+            try (java.util.zip.ZipInputStream zis =
+                         new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(fileBytes))) {
+                java.util.zip.ZipEntry e;
+                while ((e = zis.getNextEntry()) != null) {
+                    parts.put(e.getName(), zis.readAllBytes());
+                }
+            }
+
+            byte[] sheetXml = parts.get("xl/worksheets/sheet1.xml");
+            byte[] metaXml = parts.get("xl/metadata.xml");
+            byte[] richValueRelXml = parts.get("xl/richData/richValueRel.xml");
+            byte[] relsXml = parts.get("xl/richData/_rels/richValueRel.xml.rels");
+            if (sheetXml == null || metaXml == null || richValueRelXml == null || relsXml == null) {
+                return result; // "Place in cell" ပုံ မရှိပါ
+            }
+
+            java.nio.charset.Charset utf8 = java.nio.charset.StandardCharsets.UTF_8;
+
+            // 2) rId → media path (ဥပမာ rId1 → ../media/image1.jpeg)
+            Map<String, String> ridToTarget = new HashMap<>();
+            java.util.regex.Matcher rm = java.util.regex.Pattern
+                    .compile("Id=\"([^\"]+)\"[^>]*Target=\"([^\"]+)\"")
+                    .matcher(new String(relsXml, utf8));
+            while (rm.find()) ridToTarget.put(rm.group(1), rm.group(2));
+
+            // 3) richValueRel: rel အစဉ်လိုက် rId စာရင်း (index → rId)
+            List<String> relOrder = new java.util.ArrayList<>();
+            java.util.regex.Matcher relM = java.util.regex.Pattern
+                    .compile("r:id=\"([^\"]+)\"")
+                    .matcher(new String(richValueRelXml, utf8));
+            while (relM.find()) relOrder.add(relM.group(1));
+
+            // 4) valueMetadata: vm (1-based) → richValueRel index (rc v)
+            List<Integer> vmToRelIdx = new java.util.ArrayList<>();
+            String meta = new String(metaXml, utf8);
+            int vmStart = meta.indexOf("<valueMetadata");
+            if (vmStart >= 0) {
+                java.util.regex.Matcher rcM = java.util.regex.Pattern
+                        .compile("<rc [^>]*v=\"([0-9]+)\"")
+                        .matcher(meta.substring(vmStart));
+                while (rcM.find()) vmToRelIdx.add(Integer.parseInt(rcM.group(1)));
+            }
+
+            // 5) cell (r="H2" vm="1") → row index နှင့် ပုံ bytes တွဲသည်
+            java.util.regex.Matcher cm = java.util.regex.Pattern
+                    .compile("<c r=\"[A-Z]+([0-9]+)\"[^>]*vm=\"([0-9]+)\"")
+                    .matcher(new String(sheetXml, utf8));
+            while (cm.find()) {
+                int excelRow = Integer.parseInt(cm.group(1)); // 1-based (H2 → 2)
+                int vm = Integer.parseInt(cm.group(2));        // 1-based
+
+                int relIdx = (vm - 1 < vmToRelIdx.size()) ? vmToRelIdx.get(vm - 1) : (vm - 1);
+                if (relIdx < 0 || relIdx >= relOrder.size()) continue;
+
+                String rId = relOrder.get(relIdx);
+                String target = ridToTarget.get(rId);
+                if (target == null) continue;
+
+                String mediaPath = "xl/" + target.replace("../", "");
+                byte[] img = parts.get(mediaPath);
+                if (img != null) {
+                    result.put(excelRow - 1, img); // POI row index (0-based) နှင့် ကိုက်စေရန်
+                }
+            }
+            log.info("Excel ထဲမှ 'Place in cell' ပုံ {} ပုံ တွေ့ရှိသည်", result.size());
+        } catch (Exception e) {
+            log.warn("Rich-data ပုံ ထုတ်ယူ၍ မရပါ: {}", e.getMessage());
+        }
+        return result;
     }
 
     private String getStringCell(Cell cell) {
