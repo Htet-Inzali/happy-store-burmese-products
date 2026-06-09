@@ -127,13 +127,19 @@ public class ExcelService {
             int qty = r.getInitialQuantity() != null ? r.getInitialQuantity() : 0;
             LocalDate arrivalDate = r.getArrivalDate() != null ? r.getArrivalDate() : LocalDate.now();
 
+            // 🌟 ရောင်းဈေးကို အရင်တွက်သည် — Admin ထည့်ထားသော ဈေး၊ မထည့်ထားလျှင်သာ auto-calc fallback
+            final BigDecimal finalPriceVND = (r.getSalePriceVND() != null && r.getSalePriceVND().compareTo(BigDecimal.ZERO) > 0)
+                    ? r.getSalePriceVND()
+                    : settingService.calculateSalePriceVND(buildTransientBatch(BigDecimal.valueOf(weight), originalPrice, kiloRate));
+
             Product product = productRepository.findByNameIgnoreCase(r.getName())
                     .orElseGet(() -> {
                         Product p = new Product();
                         p.setName(r.getName());
                         p.setWeightGram(weight);
                         p.setActive(true);
-                        p.setSku("SKU-" + System.currentTimeMillis());
+                        p.setSku("SKU-" + System.currentTimeMillis() + "-" + (int) (Math.random() * 10000));
+                        p.setCurrentPriceVND(finalPriceVND); // 🌟 NOT NULL constraint အတွက် save မလုပ်ခင် သတ်မှတ်
                         return productRepository.save(p);
                     });
 
@@ -150,11 +156,6 @@ public class ExcelService {
             batch.setRemainingQuantity(qty);
             batch.setArrivalDate(arrivalDate);
             batch.setExpiryDate(r.getExpiryDate());
-
-            // 🌟 ရောင်းဈေး — Admin ထည့်ထားသော ဈေးကို သုံးသည်။ မထည့်ထားလျှင်သာ auto-calc fallback
-            BigDecimal finalPriceVND = (r.getSalePriceVND() != null && r.getSalePriceVND().compareTo(BigDecimal.ZERO) > 0)
-                    ? r.getSalePriceVND()
-                    : settingService.calculateSalePriceVND(batch);
             batch.setSalePriceVND(finalPriceVND);
 
             product.setCurrentPriceVND(finalPriceVND);
