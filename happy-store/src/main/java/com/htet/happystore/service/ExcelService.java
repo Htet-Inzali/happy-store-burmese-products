@@ -143,6 +143,9 @@ public class ExcelService {
                         return productRepository.save(p);
                     });
 
+            // 🌟 soft-delete (isActive=false) ထားသော ပစ္စည်းကို ပြန်တင်လျှင် reactivate လုပ်သည်
+            product.setActive(true);
+
             // ပုံ — Excel preview မှ လာသော imageUrl ရှိပါက သတ်မှတ်သည်
             if (r.getImageUrl() != null && !r.getImageUrl().isBlank()) {
                 product.setImageUrl(r.getImageUrl());
