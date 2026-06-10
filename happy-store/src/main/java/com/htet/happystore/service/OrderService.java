@@ -136,9 +136,7 @@ public class OrderService {
             totalAmountVND = totalAmountVND.add(priceVND.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
         }
 
-        if (!isPreorder && order.getDeliveryType() == Order.DeliveryType.COD && totalAmountVND.compareTo(FREE_DELIVERY_THRESHOLD) < 0) {
-            totalAmountVND = totalAmountVND.add(DELIVERY_FEE);
-        }
+        // 🌟 ပို့ဆောင်ခကို order total ထဲ မပေါင်းတော့ပါ — COD ၏ ပို့ခကို ပို့ချိန်တွင် သီးသန့်ကောက်ခံသည် (Add-on)
 
         order.setTotalAmountVND(totalAmountVND);
 
@@ -299,13 +297,8 @@ public class OrderService {
         order.getItems().addAll(additionalItems);
         order.setStatus(Order.OrderStatus.PENDING);
 
-        // 🌟 Order ၏ စုစုပေါင်းတန်ဖိုး (Total Amount) ကို အသစ်ပြန်လည် တွက်ချက်ခြင်း
-        BigDecimal finalTotal = newItemsTotal;
-        // COD ဖြစ်ပြီး Free Delivery Limit မကျော်ရင် ပို့ဆောင်ခ ပြန်ပေါင်းထည့်မည်
-        if (order.getDeliveryType() == Order.DeliveryType.COD && newItemsTotal.compareTo(FREE_DELIVERY_THRESHOLD) < 0) {
-            finalTotal = finalTotal.add(DELIVERY_FEE);
-        }
-        order.setTotalAmountVND(finalTotal);
+        // 🌟 Order ၏ စုစုပေါင်းတန်ဖိုး — ပစ္စည်းဖိုးသာ (ပို့ဆောင်ခ မပါ၊ ပို့ချိန်တွင် သီးသန့်ကောက်ခံ)
+        order.setTotalAmountVND(newItemsTotal);
 
         orderRepository.save(order);
     }
