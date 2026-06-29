@@ -37,6 +37,15 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(orderService.getMyOrders(user), "သင်၏ အော်ဒါမှတ်တမ်းများ။"));
     }
 
+    // 🌟 Customer: မိမိ၏ PENDING order ကို ပယ်ဖျက်ခြင်း
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<String>> cancelMyOrder(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long orderId) {
+        User user = getUser(userDetails);
+        orderService.cancelMyOrder(user, orderId);
+        return ResponseEntity.ok(ApiResponse.success(null, "အော်ဒါကို ပယ်ဖျက်ပြီးပါပြီ။"));
+    }
+
     private User getUser(UserDetails details) {
         return userRepository.findByEmail(details.getUsername())
                 .or(() -> userRepository.findByPhone(details.getUsername()))

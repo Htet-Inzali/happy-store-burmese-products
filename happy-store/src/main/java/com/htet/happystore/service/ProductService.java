@@ -43,6 +43,7 @@ public class ProductService {
         product.setWeightGram(request.getWeightGram());
         product.setCurrentPriceVND(request.getCurrentPriceVND());
         product.setSku(request.getSku());
+        product.setCategory(request.getCategory());
         product.setActive(true);
         Product savedProduct = productRepository.save(product);
 
@@ -101,6 +102,7 @@ public class ProductService {
         product.setImageUrl(request.getImageUrl());
         product.setWeightGram(request.getWeightGram());
         if(request.getSku() != null) product.setSku(request.getSku());
+        product.setCategory(request.getCategory());
 
         // 🌟 Product အပြင်ဈေးပြောင်းလျှင် လက်ကျန် Batch တွေကိုပါ အလိုအလျောက် ဈေးလိုက်ပြောင်းမည်
         if(request.getCurrentPriceVND() != null) {
@@ -177,6 +179,7 @@ public class ProductService {
         res.setWeightGram(product.getWeightGram());
         res.setCurrentPriceVND(product.getCurrentPriceVND());
         res.setSku(product.getSku());
+        res.setCategory(product.getCategory());
 
         int totalStock = (product.getBatches() != null) ?
                 product.getBatches().stream().mapToInt(StockBatch::getRemainingQuantity).sum() : 0;

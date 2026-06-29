@@ -36,6 +36,13 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success(null, "Order Status ပြောင်းလဲခြင်း အောင်မြင်ပါသည်။"));
     }
 
+    // 🌟 ငွေပေးချေမှု status ပြောင်း (UNPAID / PAID) — COD ngွေရ/မရ မှတ်ရန်
+    @PutMapping("/{orderId}/payment")
+    public ResponseEntity<ApiResponse<String>> updatePayment(@PathVariable Long orderId, @RequestParam("status") String status) {
+        orderService.updatePaymentStatus(orderId, status);
+        return ResponseEntity.ok(ApiResponse.success(null, "ငွေပေးချေမှု အခြေအနေ ပြောင်းပြီးပါပြီ။"));
+    }
+
     // 🌟 Walk-in (ဆိုင်ရှေ့) ရောင်းအား — Stock နုတ်ပြီး ရောင်းအား report ထဲ ထည့်
     @PostMapping("/walk-in")
     public ResponseEntity<ApiResponse<OrderDTO.AdminResponse>> createWalkInSale(

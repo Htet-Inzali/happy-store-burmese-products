@@ -334,6 +334,48 @@ public class OrderService {
         }
     }
 
+    // 🌟 Admin: ငွေပေးချေမှု status ပြောင်း (UNPAID ⇄ PAID)
+    @Transactional
+    public void updatePaymentStatus(Long orderId, String paymentStatusStr) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order ID ရှာမတွေ့ပါ"));
+        try {
+            order.setPaymentStatus(Order.PaymentStatus.valueOf(paymentStatusStr.toUpperCase()));
+            orderRepository.save(order);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("မှားယွင်းသော Payment Status ဖြစ်ပါသည်။");
+        }
+    }
+
+    // 🌟 Customer: မိမိ၏ PENDING order ကို ပယ်ဖျက်ခြင်း (stock ပြန်ဖြည့်ပေးသည်)
+    @Transactional
+    public void cancelMyOrder(User user, Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order မတွေ့ပါ"));
+
+        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
+            throw new IllegalStateException("ဤ order ကို ပယ်ဖျက်ခွင့် မရှိပါ။");
+        }
+        if (order.getStatus() != Order.OrderStatus.PENDING
+                && order.getStatus() != Order.OrderStatus.PREORDER_PENDING) {
+            throw new IllegalStateException("အတည်ပြုပြီး/ပို့ဆောင်ပြီး order ကို ပယ်ဖျက်၍ မရတော့ပါ။ ဆိုင်သို့ ဆက်သွယ်ပါ။");
+        }
+
+        // PENDING (stock နှုတ်ပြီးသား) order ကို ပယ်ဖျက်လျှင် batch သို့ stock ပြန်ဖြည့်ပေးသည်
+        if (order.getStatus() == Order.OrderStatus.PENDING) {
+            for (OrderItem item : order.getItems()) {
+                StockBatch batch = item.getBatch();
+                if (batch != null) {
+                    batch.setRemainingQuantity(batch.getRemainingQuantity() + item.getQuantity());
+                    batchRepository.save(batch);
+                }
+            }
+        }
+
+        order.setStatus(Order.OrderStatus.CANCELLED);
+        orderRepository.save(order);
+    }
+
     // Admin Dashboard တွင် ယနေ့ အရောင်းစာရင်းပြရန် (AdminOrderController အတွက်)
     public Map<String, Object> getDailySalesSummary() {
         LocalDateTime start = LocalDate.now().atStartOfDay();
@@ -383,6 +425,7 @@ public class OrderService {
         res.setOrderDate(order.getOrderDate());
         res.setTotalAmountVND(order.getTotalAmountVND());
         res.setStatus(order.getStatus() != null ? order.getStatus().name() : "");
+        res.setPaymentStatus(order.getPaymentStatus() != null ? order.getPaymentStatus().name() : "UNPAID");
 
         List<OrderDTO.AdminResponse.Item> items = order.getItems().stream().map(i -> {
             OrderDTO.AdminResponse.Item itemDTO = new OrderDTO.AdminResponse.Item();

@@ -30,6 +30,11 @@ public class Order {
         PICKUP
     }
 
+    public enum PaymentStatus {
+        UNPAID,
+        PAID
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -58,6 +63,9 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DeliveryType deliveryType;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID; // ရှိပြီးသား order များတွင် null ဖြစ်နိုင်၍ DB-level NOT NULL မထားပါ
 
     private String shippingAddress;
     private String contactPhone;

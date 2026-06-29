@@ -34,6 +34,7 @@ public class ProductDTO {
         private Double weightGram;
         private BigDecimal currentPriceVND;
         private String sku;
+        private String category;
 
         // 🌟 First Batch (ပထမဆုံး အသုတ်) အတွက်
         private BigDecimal originalPriceMMK;
@@ -52,6 +53,7 @@ public class ProductDTO {
         private BigDecimal currentPriceVND; // User ပြမည့် တစ်ခုတည်းသော ဈေး
         private Integer totalStock;
         private String sku;
+        private String category;
 
         private List<BatchResponse> batches;
     }

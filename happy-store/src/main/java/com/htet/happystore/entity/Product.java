@@ -33,6 +33,8 @@ public class Product {
 
     private String sku;
 
+    private String category; // ပစ္စည်း အမျိုးအစား (ဥပမာ — ပုဇွန်ခြောက်၊ လက်ဖက်)
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

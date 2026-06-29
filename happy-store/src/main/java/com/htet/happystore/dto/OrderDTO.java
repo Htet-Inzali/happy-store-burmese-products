@@ -86,6 +86,7 @@ public class OrderDTO {
         private LocalDateTime orderDate;
         private BigDecimal totalAmountVND;
         private String status;
+        private String paymentStatus; // UNPAID / PAID
         private List<Item> items;
 
         @Data
