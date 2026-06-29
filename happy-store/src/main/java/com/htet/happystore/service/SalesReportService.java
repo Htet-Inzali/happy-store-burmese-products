@@ -39,6 +39,8 @@ public class SalesReportService {
         List<ReportDTO.Sales> reports = new ArrayList<>();
 
         for (Order order : orders) {
+            // 🌟 ပယ်ဖျက်ထားသော order များကို sales report တွင် မထည့်ပါ
+            if (order.getStatus() == Order.OrderStatus.CANCELLED) continue;
             for (OrderItem item : order.getItems()) {
                 ReportDTO.Sales dto = new ReportDTO.Sales();
                 dto.setOrderDate(order.getOrderDate());

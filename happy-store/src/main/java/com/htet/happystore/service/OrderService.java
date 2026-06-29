@@ -166,6 +166,7 @@ public class OrderService {
         order.setUser(walkInUser);
         order.setDeliveryType(Order.DeliveryType.PICKUP);
         order.setStatus(Order.OrderStatus.DELIVERED); // ဆိုင်ရှေ့တွင် ရောင်းပြီးသား ဖြစ်၍ ပြီးစီး status
+        order.setPaymentStatus(Order.PaymentStatus.PAID); // ဆိုင်ရှေ့ ရောင်းအား — ငွေ လက်ငင်း ရရှိပြီးသား
         order.setShippingAddress("");
         order.setContactPhone(
                 (request.getCustomerName() != null && !request.getCustomerName().isBlank())
@@ -321,17 +322,35 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
+    // 🌟 Order ၏ item များ၏ stock ကို batch သို့ ပြန်ဖြည့်ပေးသည် (ပယ်ဖျက်ချိန်တွင် သုံး)
+    // Preorder item များတွင် batch null ဖြစ်၍ ကျော်သွားသည် (stock မနှုတ်ထားသေးသဖြင့်)
+    private void restockOrder(Order order) {
+        for (OrderItem item : order.getItems()) {
+            StockBatch batch = item.getBatch();
+            if (batch != null) {
+                batch.setRemainingQuantity(batch.getRemainingQuantity() + item.getQuantity());
+                batchRepository.save(batch);
+            }
+        }
+    }
+
     // Admin က Order Status ပြောင်းရန် (AdminOrderController အတွက်)
     @Transactional
     public void updateOrderStatus(Long orderId, String newStatusStr) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order ID ရှာမတွေ့ပါ"));
+        Order.OrderStatus newStatus;
         try {
-            order.setStatus(Order.OrderStatus.valueOf(newStatusStr.toUpperCase()));
-            orderRepository.save(order);
+            newStatus = Order.OrderStatus.valueOf(newStatusStr.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("မှားယွင်းသော Status ဖြစ်ပါသည်။");
         }
+        // 🌟 CANCELLED ပြောင်းလျှင် (ယခင်က cancel မဖြစ်သေးဘဲ) နှုတ်ထားသော stock ကို ပြန်ဖြည့်ပေးသည်
+        if (newStatus == Order.OrderStatus.CANCELLED && order.getStatus() != Order.OrderStatus.CANCELLED) {
+            restockOrder(order);
+        }
+        order.setStatus(newStatus);
+        orderRepository.save(order);
     }
 
     // 🌟 Admin: ငွေပေးချေမှု status ပြောင်း (UNPAID ⇄ PAID)
@@ -363,13 +382,7 @@ public class OrderService {
 
         // PENDING (stock နှုတ်ပြီးသား) order ကို ပယ်ဖျက်လျှင် batch သို့ stock ပြန်ဖြည့်ပေးသည်
         if (order.getStatus() == Order.OrderStatus.PENDING) {
-            for (OrderItem item : order.getItems()) {
-                StockBatch batch = item.getBatch();
-                if (batch != null) {
-                    batch.setRemainingQuantity(batch.getRemainingQuantity() + item.getQuantity());
-                    batchRepository.save(batch);
-                }
-            }
+            restockOrder(order);
         }
 
         order.setStatus(Order.OrderStatus.CANCELLED);
@@ -380,9 +393,12 @@ public class OrderService {
     public Map<String, Object> getDailySalesSummary() {
         LocalDateTime start = LocalDate.now().atStartOfDay();
         LocalDateTime end = LocalDate.now().atTime(LocalTime.MAX);
-        List<Order> todayOrders = orderRepository.findAllOrdersForToday(start, end);
+        // 🌟 CANCELLED order များကို ဖယ်ထုတ်ပြီး revenue တွက်သည် (null guard ပါ)
+        List<Order> todayOrders = orderRepository.findAllOrdersForToday(start, end).stream()
+                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELLED)
+                .collect(Collectors.toList());
         BigDecimal totalRevenue = todayOrders.stream()
-                .map(Order::getTotalAmountVND)
+                .map(o -> o.getTotalAmountVND() != null ? o.getTotalAmountVND() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Map<String, Object> summary = new HashMap<>();

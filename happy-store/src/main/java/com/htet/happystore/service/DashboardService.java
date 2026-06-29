@@ -221,7 +221,7 @@ public class DashboardService {
 
     // 🌟 အရောင်းရဆုံး ပစ္စည်းများကို ဆွဲထုတ်မည့် API (Build Error ရှင်းရန်)
     public List<DashboardDTO.TopProduct> getTopProducts() {
-        return orderRepository.findTopSellingProducts().stream()
+        return orderRepository.findTopSellingProducts(Order.OrderStatus.CANCELLED).stream()
                 .limit(10)
                 .map(row -> {
                     DashboardDTO.TopProduct tp = new DashboardDTO.TopProduct();

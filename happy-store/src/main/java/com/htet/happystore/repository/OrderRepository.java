@@ -23,9 +23,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("endOfDay") LocalDateTime end
     );
 
-    // ReportDTO.TopProduct နှင့် တွဲဖက်အသုံးပြုရန်
+    // ReportDTO.TopProduct နှင့် တွဲဖက်အသုံးပြုရန် (ပယ်ဖျက်ထားသော order များ မပါ)
     @Query("SELECT i.product.name, SUM(i.quantity) FROM OrderItem i " +
+            "WHERE i.order.status <> :excludeStatus " +
             "GROUP BY i.product.id, i.product.name " + // 🌟 id ကိုပါ Group By တွင် ထည့်သည်
             "ORDER BY SUM(i.quantity) DESC")
-    List<Object[]> findTopSellingProducts();
+    List<Object[]> findTopSellingProducts(@Param("excludeStatus") Order.OrderStatus excludeStatus);
 }
