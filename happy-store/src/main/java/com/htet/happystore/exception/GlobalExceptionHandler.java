@@ -27,21 +27,26 @@ public class GlobalExceptionHandler {
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
                 .collect(Collectors.toList());
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation Failed", errors);
+        // 🌟 ပထမဆုံး field error ကို message အဖြစ် ပြသည် (frontend က data.message ပြသနိုင်ရန်)
+        String msg = errors.isEmpty() ? "Validation Failed" : errors.get(0);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, msg, errors);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<List<String>>> handleBadRequest(
             IllegalArgumentException ex, HttpServletRequest request) {
         log.error("Bad Request error at {}: {}", request.getRequestURI(), ex.getMessage());
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", List.of(ex.getMessage()));
+        // 🌟 message ကို specific (မြန်မာ) message ထားသည် — frontend က data.message ပြသနိုင်ရန်
+        String msg = ex.getMessage() != null ? ex.getMessage() : "Bad Request";
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, msg, List.of(msg));
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<List<String>>> handleIllegalState(
             IllegalStateException ex, HttpServletRequest request) {
         log.warn("Business logic state conflict at {}: {}", request.getRequestURI(), ex.getMessage());
-        return buildErrorResponse(HttpStatus.CONFLICT, "Business Rule Violated", List.of(ex.getMessage()));
+        String msg = ex.getMessage() != null ? ex.getMessage() : "Business Rule Violated";
+        return buildErrorResponse(HttpStatus.CONFLICT, msg, List.of(msg));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -55,7 +60,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<List<String>>> handleMaxSizeException(
             MaxUploadSizeExceededException ex, HttpServletRequest request) {
         log.error("File size exceeded at {}", request.getRequestURI());
-        return buildErrorResponse(HttpStatus.PAYLOAD_TOO_LARGE, "File Too Large", List.of("ဖိုင်အရွယ်အစား 5MB ထက် မကျော်ရပါ"));
+        return buildErrorResponse(HttpStatus.PAYLOAD_TOO_LARGE, "File Too Large", List.of("ဖိုင်အရွယ်အစား 30MB ထက် မကျော်ရပါ"));
     }
 
     @ExceptionHandler(IOException.class)
