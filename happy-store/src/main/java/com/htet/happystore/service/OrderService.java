@@ -54,10 +54,18 @@ public class OrderService {
             int totalStock = product.getBatches() == null ? 0 : product.getBatches().stream()
                     .mapToInt(StockBatch::getRemainingQuantity).sum();
 
-            if (totalStock >= item.getQuantity()) {
+            int qty = item.getQuantity();
+
+            if (totalStock >= qty) {
+                // လက်ကျန် လုံလောက် → အားလုံး ချက်ချင်းရောင်း
                 inStockItems.add(item);
-            } else {
+            } else if (totalStock <= 0) {
+                // လက်ကျန် လုံးဝမရှိ → အားလုံး Preorder
                 preorderItems.add(item);
+            } else {
+                // 🌟 လက်ကျန် တစ်ဝက် (ဥပမာ ၁၀ လိုပြီး ၆ ရှိ) → ၆ ချက်ချင်းရောင်း၊ ၄ ကို Preorder
+                inStockItems.add(makeCartItem(item.getProductId(), totalStock));
+                preorderItems.add(makeCartItem(item.getProductId(), qty - totalStock));
             }
         }
 
@@ -70,6 +78,14 @@ public class OrderService {
         }
 
         return savedOrders.stream().map(this::mapToUserResponse).collect(Collectors.toList());
+    }
+
+    // 🌟 Partial split အတွက် CartItem အသစ်တစ်ခု ဆောက်ပေးသည်
+    private OrderDTO.Request.CartItem makeCartItem(Long productId, int quantity) {
+        OrderDTO.Request.CartItem ci = new OrderDTO.Request.CartItem();
+        ci.setProductId(productId);
+        ci.setQuantity(quantity);
+        return ci;
     }
 
     private Order processOrderSplit(User user, OrderDTO.Request request, List<OrderDTO.Request.CartItem> cartItems, boolean isPreorder) {
