@@ -48,6 +48,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 🌟 Token မရှိ/မမှန် (session ကုန်) → 401 ပြန်သည်။ Token မှန်ပြီး ခွင့်မရှိမှသာ 403။
+                // ဤသို့ခွဲထားမှ frontend က session ကုန်ကြောင်း သိ၍ login သို့ ပြန်ပို့နိုင်သည်။
+                .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(
+                            "{\"success\":false,\"message\":\"သင်၏ session ကုန်ဆုံးသွားပါပြီ။ ပြန်လည် Login ဝင်ပေးပါ။\"}");
+                }))
                 .authorizeHttpRequests(auth -> auth
                         // 🌟 Public လမ်းကြောင်းများ
                         .requestMatchers("/").permitAll()
