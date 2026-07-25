@@ -95,14 +95,12 @@ public class ExcelService {
                 dto.setTotalCostMMK(totalCostMMK);
                 dto.setTotalCostVND(totalCostMMK.multiply(settingService.getExchangeRate()));
 
-                // embed ပုံ ရှိပါက Cloudinary တင်ပြီး URL ကို row တွင် ထည့်ပေးသည်
+                // 🌟 embed ပုံ ရှိပါက resize (max 1200px) ပြီး base64 အဖြစ်သာ သိမ်းသည်။
+                // Cloudinary တင်ခြင်းကို confirm (saveBulkProducts) မှသာ လုပ်၍ cancel လျှင် orphan မဖြစ်စေပါ။
                 byte[] imageData = rowImages.get(i);
                 if (imageData != null && imageData.length > 0) {
-                    try {
-                        dto.setImageUrl(fileUploadService.saveImageBytes(imageData));
-                    } catch (Exception e) {
-                        log.warn("Row {} ({}) ၏ ပုံ upload မအောင်မြင်ပါ: {}", i, name, e.getMessage());
-                    }
+                    byte[] optimized = resizeImage(imageData, 1200);
+                    dto.setImageBase64(java.util.Base64.getEncoder().encodeToString(optimized));
                 }
 
                 rows.add(dto);
@@ -146,9 +144,16 @@ public class ExcelService {
             // 🌟 soft-delete (isActive=false) ထားသော ပစ္စည်းကို ပြန်တင်လျှင် reactivate လုပ်သည်
             product.setActive(true);
 
-            // ပုံ — Excel preview မှ လာသော imageUrl ရှိပါက သတ်မှတ်သည်
-            if (r.getImageUrl() != null && !r.getImageUrl().isBlank()) {
-                product.setImageUrl(r.getImageUrl());
+            // 🌟 ပုံ — preview base64 ရှိလျှင် (confirm) Cloudinary သို့ တင်၍ URL ရယူသည်
+            if (r.getImageBase64() != null && !r.getImageBase64().isBlank()) {
+                try {
+                    byte[] imgBytes = java.util.Base64.getDecoder().decode(r.getImageBase64());
+                    product.setImageUrl(fileUploadService.saveImageBytes(imgBytes));
+                } catch (Exception e) {
+                    log.warn("{} ၏ ပုံ Cloudinary တင်ခြင်း မအောင်မြင်ပါ: {}", r.getName(), e.getMessage());
+                }
+            } else if (r.getImageUrl() != null && !r.getImageUrl().isBlank()) {
+                product.setImageUrl(r.getImageUrl()); // ရှိပြီးသား URL (fallback)
             }
 
             StockBatch batch = new StockBatch();
@@ -292,6 +297,40 @@ public class ExcelService {
             log.warn("Rich-data ပုံ ထုတ်ယူ၍ မရပါ: {}", e.getMessage());
         }
         return result;
+    }
+
+    /**
+     * ပုံကို အများဆုံး maxDim (px) အထိ ချုံ့ပြီး JPEG bytes ပြန်ပေးသည် (base64 payload သေးစေရန်)။
+     * ဖတ်၍/ချုံ့၍ မရပါက မူရင်း bytes ကို ပြန်ပေးသည်။
+     */
+    private byte[] resizeImage(byte[] data, int maxDim) {
+        try {
+            java.awt.image.BufferedImage img =
+                    javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
+            if (img == null) return data; // format မဖတ်နိုင်ပါ
+
+            int w = img.getWidth(), h = img.getHeight();
+            if (w <= maxDim && h <= maxDim) return data; // သေးပြီးသား
+
+            double scale = (double) maxDim / Math.max(w, h);
+            int nw = Math.max(1, (int) Math.round(w * scale));
+            int nh = Math.max(1, (int) Math.round(h * scale));
+
+            java.awt.image.BufferedImage resized =
+                    new java.awt.image.BufferedImage(nw, nh, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = resized.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(img, 0, 0, nw, nh, java.awt.Color.WHITE, null);
+            g.dispose();
+
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(resized, "jpg", out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.warn("ပုံ ချုံ့ခြင်း မအောင်မြင်ပါ — မူရင်းအတိုင်း သုံးမည်: {}", e.getMessage());
+            return data;
+        }
     }
 
     private String getStringCell(Cell cell) {

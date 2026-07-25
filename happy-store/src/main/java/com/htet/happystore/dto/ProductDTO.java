@@ -18,7 +18,8 @@ public class ProductDTO {
         private Integer initialQuantity;
         private LocalDate arrivalDate;
         private LocalDate expiryDate;
-        private String imageUrl;               // Excel ထဲ embed ပုံကို Cloudinary တင်ပြီး ရလာသော URL
+        private String imageUrl;               // ရှိပြီးသား Cloudinary URL (optional)
+        private String imageBase64;            // 🌟 Excel embed ပုံ — preview တွင် base64၊ confirm မှသာ Cloudinary တင်သည် (orphan မဖြစ်စေရန်)
 
         // preview တွင် ပြရန် (DB မသိမ်း) — အရင်း breakdown
         private BigDecimal totalCostMMK;       // ဝယ်ဈေး + သယ်ယူခ (စုစုပေါင်း အရင်း MMK)
