@@ -366,6 +366,34 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
+    // 🌟 Admin: Customer စာရင်း + statistics (order count, total spent) — walk-in system user မပါ
+    public List<com.htet.happystore.dto.CustomerDTO.Summary> getCustomers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.USER && !WALK_IN_PHONE.equals(u.getPhone()))
+                .map(u -> {
+                    List<Order> orders = orderRepository.findByUser(u).stream()
+                            .filter(o -> o.getStatus() != Order.OrderStatus.CANCELLED)
+                            .collect(Collectors.toList());
+                    com.htet.happystore.dto.CustomerDTO.Summary s = new com.htet.happystore.dto.CustomerDTO.Summary();
+                    s.setId(u.getId());
+                    s.setFullName(u.getFullName());
+                    s.setPhone(u.getPhone());
+                    s.setEmail(u.getEmail());
+                    s.setCountry(u.getCountry() != null ? u.getCountry().name() : null);
+                    s.setOrderCount(orders.size());
+                    s.setTotalSpentVND(orders.stream()
+                            .map(o -> o.getTotalAmountVND() != null ? o.getTotalAmountVND() : BigDecimal.ZERO)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add));
+                    s.setLastOrderDate(orders.stream()
+                            .map(Order::getOrderDate)
+                            .filter(java.util.Objects::nonNull)
+                            .max(LocalDateTime::compareTo).orElse(null));
+                    return s;
+                })
+                .sorted((a, b) -> b.getTotalSpentVND().compareTo(a.getTotalSpentVND()))
+                .collect(Collectors.toList());
+    }
+
     // Admin ရဲ့ Dashboard မှာ အော်ဒါအားလုံးပြရန် (AdminOrderController အတွက်)
     public List<OrderDTO.AdminResponse> getAllOrdersForAdmin() {
         return orderRepository.findAllByOrderByOrderDateDesc().stream()

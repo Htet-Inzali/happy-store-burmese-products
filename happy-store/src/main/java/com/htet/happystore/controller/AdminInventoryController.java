@@ -73,6 +73,22 @@ public class AdminInventoryController {
         return ResponseEntity.ok(ApiResponse.success(null, "ပစ္စည်းကို အောင်မြင်စွာ ဖျက်ပြီးပါပြီ။"));
     }
 
+    // 🌟 Bulk price update — ရောင်းဈေးအားလုံး (သို့ category) ကို percent ဖြင့် ချိန်ညှိ
+    @PutMapping("/products/bulk-price")
+    public ResponseEntity<ApiResponse<Integer>> bulkPrice(
+            @RequestParam java.math.BigDecimal percent,
+            @RequestParam(required = false) String category) {
+        int updated = productService.bulkAdjustPrice(percent, category);
+        return ResponseEntity.ok(ApiResponse.success(updated, updated + " မျိုး၏ ဈေးကို ချိန်ညှိပြီးပါပြီ။"));
+    }
+
+    // 🌟 Product enable/disable (bulk actions)
+    @PutMapping("/products/{id}/active")
+    public ResponseEntity<ApiResponse<String>> setActive(@PathVariable Long id, @RequestParam boolean active) {
+        productService.setProductActive(id, active);
+        return ResponseEntity.ok(ApiResponse.success(null, active ? "ပြန်ဖွင့်ပြီးပါပြီ။" : "ပိတ်လိုက်ပါပြီ။"));
+    }
+
     // 🌟 ဤနေရာတွင် Batch များပြင်ဆင်ရန် လိုအပ်နေသော API အသစ်ကို ထည့်သွင်းပေးထားပါသည်
     @PutMapping("/batches/{batchId}")
     public ResponseEntity<ApiResponse<ProductDTO.BatchResponse>> updateBatch(

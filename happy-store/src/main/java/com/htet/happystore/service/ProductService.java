@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +21,34 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final StockBatchRepository stockBatchRepository;
+
+    // 🌟 Bulk price adjust — ရောင်းဈေးအားလုံး (သို့ category တစ်ခု) ကို percent ဖြင့် တစ်ပြိုင်နက် ချိန်ညှိသည်
+    // percent: +5 = ၅% တိုး၊ -10 = ၁၀% လျှော့
+    @Transactional
+    public int bulkAdjustPrice(BigDecimal percent, String category) {
+        if (percent == null) throw new IllegalArgumentException("ရာခိုင်နှုန်း ထည့်ပါ။");
+        BigDecimal factor = BigDecimal.ONE.add(percent.divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP));
+        int updated = 0;
+        for (Product p : productRepository.findAllActiveWithBatches()) {
+            if (category != null && !category.isBlank()
+                    && !category.equalsIgnoreCase(p.getCategory())) continue;
+            if (p.getCurrentPriceVND() == null) continue;
+            BigDecimal newPrice = p.getCurrentPriceVND().multiply(factor).setScale(0, RoundingMode.HALF_UP);
+            if (newPrice.compareTo(BigDecimal.ZERO) < 0) newPrice = BigDecimal.ZERO;
+            syncPriceAcrossProductAndActiveBatches(p, newPrice);
+            updated++;
+        }
+        return updated;
+    }
+
+    // 🌟 Product ကို enable/disable (soft) — bulk actions အတွက်
+    @Transactional
+    public void setProductActive(Long id, boolean active) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product မတွေ့ပါ"));
+        product.setActive(active);
+        productRepository.save(product);
+    }
 
     public List<ProductDTO.Response> getAllActiveProducts() {
         return productRepository.findAllActiveWithBatches().stream()

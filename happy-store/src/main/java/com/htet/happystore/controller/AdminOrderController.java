@@ -30,6 +30,12 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success(orderService.getAllOrdersForAdmin(), "အော်ဒါစာရင်းအားလုံး။"));
     }
 
+    // 🌟 Customer စာရင်း + statistics
+    @GetMapping("/customers")
+    public ResponseEntity<ApiResponse<List<com.htet.happystore.dto.CustomerDTO.Summary>>> getCustomers() {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getCustomers(), "Customer စာရင်း။"));
+    }
+
     @PutMapping("/{orderId}/status")
     public ResponseEntity<ApiResponse<String>> updateStatus(@PathVariable Long orderId, @RequestParam("status") String status) {
         orderService.updateOrderStatus(orderId, status);
