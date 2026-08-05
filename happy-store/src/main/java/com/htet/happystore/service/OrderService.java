@@ -26,6 +26,7 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final StockBatchRepository batchRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private static final BigDecimal DELIVERY_FEE = new BigDecimal("30000");
     private static final BigDecimal FREE_DELIVERY_THRESHOLD = new BigDecimal("500000");
@@ -77,7 +78,41 @@ public class OrderService {
             savedOrders.add(processOrderSplit(user, request, preorderItems, true));
         }
 
+        // 🌟 Admin ကို Telegram order alert (best-effort)
+        sendOrderAlert(user, request, savedOrders);
+
         return savedOrders.stream().map(this::mapToUserResponse).collect(Collectors.toList());
+    }
+
+    // Order အသစ်ဝင်ကြောင်း Admin ကို Telegram ဖြင့် အသိပေးသည်
+    private void sendOrderAlert(User user, OrderDTO.Request request, List<Order> orders) {
+        try {
+            BigDecimal grandTotal = orders.stream()
+                    .map(o -> o.getTotalAmountVND() != null ? o.getTotalAmountVND() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("🛒 <b>Order အသစ် ဝင်ပါပြီ!</b>\n\n");
+            sb.append("👤 ").append(user.getFullName() != null ? user.getFullName() : "Customer").append("\n");
+            String phone = request.getContactPhone() != null ? request.getContactPhone() : user.getPhone();
+            if (phone != null) sb.append("📞 ").append(phone).append("\n");
+            sb.append("🚚 ").append("PICKUP".equalsIgnoreCase(request.getDeliveryType()) ? "ဆိုင်လာယူ" : "အိမ်အရောက်ပို့").append("\n\n");
+
+            for (Order o : orders) {
+                boolean pre = o.getStatus() == Order.OrderStatus.PREORDER_PENDING;
+                sb.append(pre ? "⏳ <b>Preorder</b> " : "✅ <b>ချက်ချင်း</b> ").append(o.getOrderNumber()).append("\n");
+                for (OrderItem it : o.getItems()) {
+                    sb.append("   • ").append(it.getProduct() != null ? it.getProduct().getName() : "")
+                            .append(" × ").append(it.getQuantity()).append("\n");
+                }
+            }
+            sb.append("\n💰 <b>စုစုပေါင်း: ").append(String.format("%,d", grandTotal.longValue())).append(" VND</b>");
+            sb.append("\n<i>(ပို့ဆောင်ခ သီးသန့်)</i>");
+
+            notificationService.sendTelegram(sb.toString());
+        } catch (Exception e) {
+            // alert fail ဖြစ်လျှင်လည်း order ကို မထိခိုက်စေပါ
+        }
     }
 
     // 🌟 Partial split အတွက် CartItem အသစ်တစ်ခု ဆောက်ပေးသည်
