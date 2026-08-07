@@ -183,12 +183,6 @@ public class ExcelService {
         return batch;
     }
 
-    // /upload endpoint (preview မပါ တိုက်ရိုက် import) — parse ပြီး တန်းသိမ်းသည်
-    @Transactional
-    public void importProductsFromExcel(MultipartFile file) throws IOException {
-        saveBulkProducts(parseForPreview(file));
-    }
-
     /**
      * Excel sheet ထဲ embed ထားသော ပုံများကို သူတို့ရှိရာ row index နှင့် တွဲ၍ ထုတ်ယူသည်။
      * (Excel တွင် "Insert → Pictures" ဖြင့် cell ပေါ်တွင် တင်ထားသော ပုံများကို POI က ဖတ်နိုင်သည်)

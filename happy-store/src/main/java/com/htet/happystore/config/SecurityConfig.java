@@ -71,7 +71,6 @@ public class SecurityConfig {
 
                         // 🌟 Login ဝင်ထားသော User/Admin အားလုံး သုံးနိုင်သော လမ်းကြောင်းများ
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/wishlist/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/orders/**").hasAnyRole("USER", "ADMIN")
 
                         .anyRequest().authenticated()

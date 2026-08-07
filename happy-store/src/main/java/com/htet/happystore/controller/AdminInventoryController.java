@@ -30,11 +30,6 @@ public class AdminInventoryController {
         return ResponseEntity.ok(ApiResponse.success(imageUrl, "ပုံတင်ခြင်း အောင်မြင်ပါသည်။"));
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<String>> uploadExcel(@RequestParam("file") MultipartFile file) throws IOException {
-        excelService.importProductsFromExcel(file);
-        return ResponseEntity.ok(ApiResponse.success(null, "ပစ္စည်းစာရင်းများ အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ။"));
-    }
 
     // 🌟 Excel ကို ဖတ်၍ preview ပြန်ပေးသည် (DB မသိမ်းသေး — ပုံတော့ Cloudinary တင်ပြီး)
     @PostMapping("/upload-preview")
