@@ -21,6 +21,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final StockBatchRepository stockBatchRepository;
+    private final com.htet.happystore.repository.OrderItemRepository orderItemRepository;
 
     // 🌟 Bulk price adjust — ရောင်းဈေးအားလုံး (သို့ category တစ်ခု) ကို percent ဖြင့် တစ်ပြိုင်နက် ချိန်ညှိသည်
     // percent: +5 = ၅% တိုး၊ -10 = ၁၀% လျှော့
@@ -149,6 +150,18 @@ public class ProductService {
                 .orElseThrow(() -> new IllegalArgumentException("ဖျက်ချင်သော Product မရှိပါ"));
         product.setActive(false);
         productRepository.save(product);
+    }
+
+    // 🌟 Batch (အသုတ်) တစ်ခုကို သီးသန့် ဖျက်သည် (product မဖျက်ဘဲ)။
+    // ရောင်း/မှာယူထားမှုရှိသော batch ကို မဖျက်ပါ — sales history/FK ကို ကာကွယ်ရန်။
+    @Transactional
+    public void deleteBatch(Long batchId) {
+        StockBatch batch = stockBatchRepository.findById(batchId)
+                .orElseThrow(() -> new IllegalArgumentException("ဖျက်ချင်သော Batch မရှိပါ"));
+        if (orderItemRepository.existsForBatch(batchId)) {
+            throw new IllegalStateException("ဤအသုတ်မှ ရောင်း/မှာယူထားမှု ရှိသဖြင့် မှတ်တမ်းအတွက် မဖျက်နိုင်ပါ။");
+        }
+        stockBatchRepository.delete(batch);
     }
 
     @Transactional

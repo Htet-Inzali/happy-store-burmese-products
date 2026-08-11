@@ -84,6 +84,13 @@ public class AdminInventoryController {
         return ResponseEntity.ok(ApiResponse.success(null, active ? "ပြန်ဖွင့်ပြီးပါပြီ။" : "ပိတ်လိုက်ပါပြီ။"));
     }
 
+    // 🌟 Batch (အသုတ်) တစ်ခုကို သီးသန့် ဖျက်ရန် (product မဖျက်ဘဲ)
+    @DeleteMapping("/batches/{batchId}")
+    public ResponseEntity<ApiResponse<String>> deleteBatch(@PathVariable Long batchId) {
+        productService.deleteBatch(batchId);
+        return ResponseEntity.ok(ApiResponse.success(null, "အသုတ်ကို ဖျက်ပြီးပါပြီ။"));
+    }
+
     // 🌟 ဤနေရာတွင် Batch များပြင်ဆင်ရန် လိုအပ်နေသော API အသစ်ကို ထည့်သွင်းပေးထားပါသည်
     @PutMapping("/batches/{batchId}")
     public ResponseEntity<ApiResponse<ProductDTO.BatchResponse>> updateBatch(
