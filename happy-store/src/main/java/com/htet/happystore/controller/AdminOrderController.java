@@ -24,6 +24,7 @@ public class AdminOrderController {
 
     private final OrderService orderService;
     private final SalesReportService salesReportService;
+    private final com.htet.happystore.service.UserService userService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<OrderDTO.AdminResponse>>> getAllOrders() {
@@ -34,6 +35,15 @@ public class AdminOrderController {
     @GetMapping("/customers")
     public ResponseEntity<ApiResponse<List<com.htet.happystore.dto.CustomerDTO.Summary>>> getCustomers() {
         return ResponseEntity.ok(ApiResponse.success(orderService.getCustomers(), "Customer စာရင်း။"));
+    }
+
+    // 🌟 Admin က ဖောက်သည်တစ်ဦး၏ password ကို reset ပေးခြင်း (password မေ့သွားသူများအတွက်)
+    @PutMapping("/customers/{userId}/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetCustomerPassword(
+            @PathVariable Long userId,
+            @RequestBody Map<String, String> body) {
+        userService.adminResetPassword(userId, body.get("newPassword"));
+        return ResponseEntity.ok(ApiResponse.success(null, "ဖောက်သည်၏ password ကို reset ပြီးပါပြီ။"));
     }
 
     @PutMapping("/{orderId}/status")

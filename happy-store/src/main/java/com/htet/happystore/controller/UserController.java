@@ -4,6 +4,7 @@ import com.htet.happystore.dto.ApiResponse;
 import com.htet.happystore.dto.UserDTO;
 import com.htet.happystore.entity.User;
 import com.htet.happystore.repository.UserRepository;
+import com.htet.happystore.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final UserService userService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
@@ -49,6 +51,16 @@ public class UserController {
 
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success(null, "Profile ပြင်ဆင်ခြင်း အောင်မြင်ပါသည်။"));
+    }
+
+    // 🌟 လက်ရှိ login ဝင်ထားသူ (user/admin) ကိုယ်တိုင် password ပြောင်းခြင်း
+    @PutMapping("/password")
+    public ResponseEntity<ApiResponse<String>> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> body) {
+        User user = getUser(userDetails);
+        userService.changePassword(user.getId(), body.get("currentPassword"), body.get("newPassword"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Password ပြောင်းလဲခြင်း အောင်မြင်ပါသည်။"));
     }
 
     @PostMapping("/logout")

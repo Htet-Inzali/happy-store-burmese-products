@@ -38,11 +38,18 @@ public class DataSeeder implements CommandLineRunner {
             userRepository.save(admin);
             System.out.println("✅ Admin account created with password from ENV.");
         } else {
-            // 🌟 အရေးကြီး - အကောင့်ရှိပြီးသားဆိုလျှင် Password ကို ENV ထဲကအတိုင်း Force Update လုပ်မည်
-            User admin = existingAdmin.get();
-            admin.setPassword(passwordEncoder.encode(adminPassword));
-            userRepository.save(admin);
-            System.out.println("✅ Admin password has been FORCE RESET to ENV value.");
+            // 🌟 အကောင့်ရှိပြီးသားဆိုလျှင် — password ကို restart တိုင်း အလိုအလျောက် မပြောင်းတော့ပါ။
+            // (admin က password ကိုယ်တိုင်ပြောင်းထားရင် တည်တံ့နေစေရန်)
+            // password မေ့/ပြန်ချင်မှသာ — Render env ထဲ ADMIN_FORCE_RESET=true ထည့်ပြီး redeploy လုပ်ပါ။
+            String forceReset = System.getenv("ADMIN_FORCE_RESET");
+            if ("true".equalsIgnoreCase(forceReset)) {
+                User admin = existingAdmin.get();
+                admin.setPassword(passwordEncoder.encode(adminPassword));
+                userRepository.save(admin);
+                System.out.println("⚠️ Admin password FORCE RESET to ENV value (ADMIN_FORCE_RESET=true).");
+            } else {
+                System.out.println("ℹ️ Admin account already exists — password left unchanged.");
+            }
         }
     }
 }
