@@ -158,10 +158,15 @@ public class ProductService {
     public void deleteBatch(Long batchId) {
         StockBatch batch = stockBatchRepository.findById(batchId)
                 .orElseThrow(() -> new IllegalArgumentException("ဖျက်ချင်သော Batch မရှိပါ"));
-        if (orderItemRepository.existsForBatch(batchId)) {
+        if (orderItemRepository.countByBatch(batchId) > 0) {
             throw new IllegalStateException("ဤအသုတ်မှ ရောင်း/မှာယူထားမှု ရှိသဖြင့် မှတ်တမ်းအတွက် မဖျက်နိုင်ပါ။");
         }
+        // batch ကို product ၏ collection မှလည်း ဖယ်ရှား၍ orphan/FK ပြဿနာ မဖြစ်စေရန်
+        if (batch.getProduct() != null && batch.getProduct().getBatches() != null) {
+            batch.getProduct().getBatches().remove(batch);
+        }
         stockBatchRepository.delete(batch);
+        stockBatchRepository.flush(); // FK/constraint ရှိပါက ဤနေရာတွင် ချက်ချင်း တွေ့စေရန်
     }
 
     @Transactional

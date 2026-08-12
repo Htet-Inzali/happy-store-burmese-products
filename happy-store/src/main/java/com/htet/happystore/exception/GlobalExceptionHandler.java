@@ -49,6 +49,15 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, msg, List.of(msg));
     }
 
+    // 🌟 FK/constraint violation (ဥပမာ — မှတ်တမ်းနှင့် ချိတ်ဆက်နေသော data ဖျက်ခြင်း) → clean message
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<List<String>>> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage());
+        String msg = "အခြားမှတ်တမ်းများနှင့် ချိတ်ဆက်နေသဖြင့် ဤလုပ်ဆောင်ချက်ကို ဆောင်ရွက်၍ မရပါ။";
+        return buildErrorResponse(HttpStatus.CONFLICT, msg, List.of(msg));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<List<String>>> handleAccessDenied(
             AccessDeniedException ex, HttpServletRequest request) {
