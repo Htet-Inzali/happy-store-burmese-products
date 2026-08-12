@@ -51,6 +51,10 @@ public class User {
 
     private String profileImageUrl;
 
+    // 🌟 Password reset (email self-service) — token + သက်တမ်းကုန်ဆုံးချိန်
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

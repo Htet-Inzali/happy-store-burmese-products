@@ -36,6 +36,23 @@ public class AuthDTO {
         private String country;
     }
 
+    @Data
+    public static class ForgotPasswordRequest {
+        @NotBlank(message = "Email is required")
+        @Email(message = "Invalid email format")
+        private String email;
+    }
+
+    @Data
+    public static class ResetPasswordRequest {
+        @NotBlank(message = "Token is required")
+        private String token;
+
+        @NotBlank(message = "Password is required")
+        @Size(min = 6, message = "Password must be at least 6 characters")
+        private String newPassword;
+    }
+
     @Getter
     public static class Response {
         private final String token;

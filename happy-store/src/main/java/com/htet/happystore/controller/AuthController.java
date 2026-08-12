@@ -68,4 +68,20 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("အကောင့် သို့မဟုတ် စကားဝှက် မှားယွင်းနေပါသည်။"));
     }
 
+    // 🌟 Password မေ့ — email ဖြင့် reset link တောင်းဆိုခြင်း (email ရှိသူများသာ)။
+    // Enumeration မဖော်ရန် — email ရှိ/မရှိ မခွဲဘဲ generic success ပြန်သည်။
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody AuthDTO.ForgotPasswordRequest request) {
+        userService.requestPasswordReset(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.success(null,
+                "အကယ်၍ ဤ email ဖြင့် အကောင့်ရှိပါက reset link ပို့ပြီးပါပြီ။ သင့် email ကို စစ်ဆေးပါ။"));
+    }
+
+    // 🌟 Token ဖြင့် password အသစ် သတ်မှတ်ခြင်း
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody AuthDTO.ResetPasswordRequest request) {
+        userService.resetPasswordByToken(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.success(null, "စကားဝှက် ပြောင်းလဲပြီးပါပြီ။ Login ပြန်ဝင်ပါ။"));
+    }
+
 }
